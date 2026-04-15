@@ -1,11 +1,23 @@
 {
   "permissions": {
+    "defaultMode": "auto",
     "allow": [
       "WebFetch(domain:game8.jp)",
       "WebSearch",
       "Bash(node:*)",
       "Bash(powershell:*)",
-      "WebFetch(domain:x.com)"
+      "WebFetch(domain:x.com)",
+      "Bash(git add:*)",
+      "Bash(git commit -m ':*)",
+      "Bash(git config:*)",
+      "Bash(git commit:*)",
+      "Bash(node.exe --check \"C:/Users/slime_a/Documents/sinsen/battle_simulator.html\")",
+      "Bash(python \"C:/Users/slime_a/Documents/sinsen/check.py\")",
+      "Bash(python3 -c \"print\\('ok'\\)\")",
+      "mcp__plugin_claude-mem_mcp-search__get_observations",
+      "Bash(awk -F: 'NR==1{s=$2} {if\\($2<1900 && $2>1700\\) print}')",
+      "mcp__plugin_claude-mem_mcp-search__smart_outline",
+      "Skill(update-config)"
     ]
   }
 }
