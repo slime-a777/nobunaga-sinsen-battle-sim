@@ -873,10 +873,9 @@ function hpDmg(hp) {
 function minG(hp){ return Math.max(5, Math.floor(hp/1000)*2); }
 function attrD(x, coef=1.44){ return (0.0005*x*x + 0.9*x + 4.5) * coef; }
 function baseDmg(atkA, defD, atkHp){ return Math.max(minG(atkHp), minG(atkHp)+hpDmg(atkHp)+attrD(atkA-defD)); }
-function statScale(stat) { return Math.max(1, 1 + (stat - 100) * 0.0025); } // 100基準: 200で×1.25, 300で×1.50
+function statScale(stat) { return Math.max(1, 1 + (stat - 100) * 0.0025); } // 100基準: 200で×1.25, 300で×1.50（各種確率補正に使用）
 function applyRate(base, rate, atkAttr, dep=false){
   let d = base*(rate/100);
-  if (dep) d *= statScale(atkAttr); // ステータス依存スケーリング
   return Math.max(1, Math.round(d*(0.956+Math.random()*0.088)));
 }
 function rand4(){ return 0.956+Math.random()*0.088; }
@@ -944,7 +943,7 @@ function initUnit(b) {
   return {
     ...b, hp: b.maxHp, injured: 0, dead: 0, nanaCnt: 0, tesseki: 0,
     suikouT: 0, muku: 0, heihaki: false,
-    ranzuT: 0, buff_atkDmg: 1.0, shichiHitCnt: 0, baritauntProtect: false,
+    ranzuList: [], buff_atkDmg: 1.0, shichiHitCnt: 0, baritauntProtect: false,
     rengiT: 0,              // 連撃ターン残（確定）
     rengi50T: 0,            // 連撃ターン残（50%判定・鬼若子）
     fuusekiResist: 0,       // 封撃耐性ターン残
@@ -1111,12 +1110,15 @@ function execFixed(st, me, isSelf, advMult, factionMult, isTaisho=false, typeFil
     addLog(st,'log-ctrl',`  無策: ${me.name} 固有戦法不発`);
     return;
   }
-  // 混乱: 全行動の対象を両軍全体からランダム選択
+  // 混乱: 全行動の対象を両軍全体から最大3名（自身含む）ランダム選択
   const confused = (me.confused||0) > 0;
-  if (confused) addLog(st,'log-ctrl',`  混乱中(${me.name}): 対象がランダム`);
-  const allLiveFixed = [...st.ally,...st.enemy].filter(u=>u.hp>0&&u!==me);
-  const opp = confused ? allLiveFixed : (isSelf ? st.enemy : st.ally);
-  const allies = confused ? allLiveFixed : (isSelf ? st.ally : st.enemy);
+  if (confused) addLog(st,'log-ctrl',`  混乱中(${me.name}): 対象がランダム（最大3名、自身含む）`);
+  const _allLiveInclSelf = [...st.ally,...st.enemy].filter(u=>u.hp>0);
+  const _allLiveExclSelf = _allLiveInclSelf.filter(u=>u!==me);
+  // 混乱時: 自身含む全生存者からシャッフル→最大3名（全体攻撃の対象上限）
+  const confusedPool = _allLiveInclSelf.slice().sort(()=>Math.random()-0.5).slice(0,3);
+  const opp = confused ? confusedPool : (isSelf ? st.enemy : st.ally);
+  const allies = confused ? _allLiveExclSelf : (isSelf ? st.ally : st.enemy);
   if (!f) return;
 
   // 準備が必要な能動固有戦法の共通ゲート（地黄八幡・十面埋伏・梟雄の計 等）
@@ -1136,7 +1138,7 @@ function execFixed(st, me, isSelf, advMult, factionMult, isTaisho=false, typeFil
     // isPrepped=true または 運勝の鼻スキップ時 → 下の個別ハンドラへ続く
   }
 
-  // 水の如し（黒田官兵衛）: 60%で敵1体に計略88%（1〜2回）。奇策確率+5%はinitUnitで付与済み
+  // 水の如し（黒田官兵衛）: 60%で敵1体に計略88%（1〜2回）。計略攻撃ごとに奇策+5%
   if (f.name === '水の如し') {
     if (Math.random() < 0.60) {
       const times = Math.random()<0.5?1:2;
@@ -1152,6 +1154,9 @@ function execFixed(st, me, isSelf, advMult, factionMult, isTaisho=false, typeFil
         addLog(st, isSelf?'log-ally':'log-enemy', `  ${sl} 水の如し(${me.name}→${tgt.name}) 計略[${actualDmg.toLocaleString()}]${kr.label}（残${tgt.hp.toLocaleString()}）${st._lastMods||''}`);
         st._lastMods = '';
         if (st.hiyokuSide && st.hiyokuSide !== (isSelf?'ally':'enemy')) st.hiyokuAccum += actualDmg*0.75;
+        // 計略攻撃ごとに奇策確率+5%
+        me.kiryakuRate = Math.min(1.0, (me.kiryakuRate || 0) + 0.05);
+        addLog(st, isSelf?'log-ally':'log-enemy', `  水の如し(${me.name}) 計略攻撃→奇策+5%（計${Math.round(me.kiryakuRate*100)}%）`);
       }
     }
   }
@@ -1316,8 +1321,9 @@ function execFixed(st, me, isSelf, advMult, factionMult, isTaisho=false, typeFil
     }
   }
   // 掃疑平乱（伊達晴宗）自身と友軍単体に乱舞78%を2T付与
-  // 電光雷轟（立花道雪）通攻後、対象とランダム敵1体に麻痺2T。対象が麻痺中なら雷鳴（全体兵刃52%、大将技60%）
+  // 電光雷轟（立花道雪）通攻後、対象とランダム敵1体に麻痺2T。対象が麻痺中なら雷鳴（全体兵刃52%、大将技60%）。1ターン1回まで
   else if (f.name === '電光雷轟') {
+    if (me._denkaiDone) return; // 1ターン1回制限
     if (Math.random() > 0.65) return;
     const logS = isSelf ? 'log-ally' : 'log-enemy';
     const sl = isSelf ? '[自]' : '[敵]';
@@ -1325,6 +1331,7 @@ function execFixed(st, me, isSelf, advMult, factionMult, isTaisho=false, typeFil
     const others = opp.filter(o => o.hp > 0 && o !== t1);
     const t2 = others.length ? others[Math.floor(Math.random() * others.length)] : null;
     const tgts = [t1, t2].filter(Boolean);
+    me._denkaiDone = true; // 同ターン内の再発動を禁止
     tgts.forEach(t => {
       const wasParalyzed = (t.muku || 0) > 0;
       tryCtrl(t, u => { u.muku = Math.max(u.muku || 0, 2); }, '麻痺', st);
@@ -1397,11 +1404,11 @@ function execFixed(st, me, isSelf, advMult, factionMult, isTaisho=false, typeFil
   else if (f.name === '掃疑平乱') {
     if (Math.random() < 0.35) {
       const logS = isSelf ? 'log-ally' : 'log-enemy';
-      me.ranzuT = 2; me.ranzuRate = 0.78;
+      me.ranzuList = me.ranzuList || []; me.ranzuList.push({t:2, rate:0.78});
       addLog(st, 'log-buff', `  掃疑平乱: ${me.name} 乱舞78%(2T)付与`);
       const ally2 = (isSelf ? st.ally : st.enemy).filter(a => a.hp > 0 && a !== me)[0];
       if (ally2) {
-        ally2.ranzuT = 2; ally2.ranzuRate = 0.78;
+        ally2.ranzuList = ally2.ranzuList || []; ally2.ranzuList.push({t:2, rate:0.78});
         addLog(st, 'log-buff', `  掃疑平乱: ${ally2.name} 乱舞78%(2T)付与`);
       }
       if (st.turn >= 5) {
@@ -1411,6 +1418,9 @@ function execFixed(st, me, isSelf, advMult, factionMult, isTaisho=false, typeFil
       }
     }
   }
+  // 固有戦法ダメージ後のpendingログをフラッシュ（回生・城盗りなど）
+  (st._pendingPostAttackLogs||[]).forEach(({cls, msg}) => addLog(st, cls, msg));
+  st._pendingPostAttackLogs = [];
 }
 
 function execSlot(st, sk, me, isSelf, advMult, factionMult, typeFilter=null) {
@@ -1428,13 +1438,19 @@ function execSlot(st, sk, me, isSelf, advMult, factionMult, typeFilter=null) {
     addLog(st,'log-ctrl',`  無策: ${me.name} 能動戦法不発`);
     return;
   }
-  // 発動率チェック（一行三昧ボーナス）。準備完了の場合は確定発動
+  // 発動率チェック（一行三昧・独立独歩ボーナス、加算方式）。準備完了の場合は確定発動
   let prob = sk.prob || 1.0;
-  if (!isPrepped && sk.type === 'active') {
-    const _ichiAllies = isSelf ? st.ally : st.enemy;
-    const hasIchigyou = _ichiAllies.some(a =>
-      a.slots?.some(s => s?.name==='一行三昧') || a.fixed?.name==='一行三昧');
-    if (hasIchigyou) prob = Math.min(1.0, prob + 0.14);
+  if (!isPrepped) {
+    const _probAllies = isSelf ? st.ally : st.enemy;
+    if (sk.type === 'active') {
+      const hasIchigyou = _probAllies.some(a =>
+        a.slots?.some(s => s?.name==='一行三昧') || a.fixed?.name==='一行三昧');
+      if (hasIchigyou) prob = Math.min(1.0, prob + 0.14);
+    } else if (sk.type === 'strike') {
+      const hasIndep = _probAllies.some(a =>
+        a.slots?.some(s => s?.name==='独立独歩') || a.fixed?.name==='独立独歩');
+      if (hasIndep) prob = Math.min(1.0, prob + 0.17);
+    }
   }
   if (!isPrepped && Math.random() > prob) return;
 
@@ -1449,11 +1465,13 @@ function execSlot(st, sk, me, isSelf, advMult, factionMult, typeFilter=null) {
     }
     addLog(st, isSelf?'log-ally':'log-enemy', `  [${side}] 運勝の鼻: 準備省略！`);
   }
-  // 混乱: 全行動の対象を両軍全体からランダム選択
+  // 混乱: 全行動の対象を両軍全体から最大3名（自身含む）ランダム選択
   const confused = (me.confused||0) > 0;
-  const allLiveSlot = [...st.ally,...st.enemy].filter(u=>u.hp>0&&u!==me);
-  const opp = confused ? allLiveSlot : (isSelf ? st.enemy : st.ally);
-  const allies = confused ? allLiveSlot : (isSelf ? st.ally : st.enemy);
+  const _allLiveInclSelfSlot = [...st.ally,...st.enemy].filter(u=>u.hp>0);
+  const _allLiveExclSelfSlot = _allLiveInclSelfSlot.filter(u=>u!==me);
+  const confusedPoolSlot = _allLiveInclSelfSlot.slice().sort(()=>Math.random()-0.5).slice(0,3);
+  const opp = confused ? confusedPoolSlot : (isSelf ? st.enemy : st.ally);
+  const allies = confused ? _allLiveExclSelfSlot : (isSelf ? st.ally : st.enemy);
 
   // 計略ダメの共通処理（奇策適用・isChi=true）
   // dep=true: 知略依存スケーリング適用（戦法説明に「知略依存」と明記のもの）
@@ -1559,7 +1577,9 @@ function execSlot(st, sk, me, isSelf, advMult, factionMult, typeFilter=null) {
       }
     });
   } else if (n==='一力当先') {
-    me.buff_atkDmg = 1.5; me.ranzuT = 2; me.ranzuRate = 0.75;
+    me.buff_atkDmg = 1.5;
+    me.ranzuList = me.ranzuList || [];
+    me.ranzuList.push({t:2, rate:0.75, atkDmg:true});
     addLog(st,'log-buff',`  一力当先(${me.name}) 通常攻撃+50%＋乱舞75%(2T)`);
   } else if (n==='水攻干計') {
     opp.filter(o=>o.hp>0).forEach(t=>{
@@ -1651,6 +1671,9 @@ function execSlot(st, sk, me, isSelf, advMult, factionMult, typeFilter=null) {
       addLog(st,logSide,`  [${side}] 一触即発(${me.name}→${t.name}) 統率-${toReduce}（1T）＋無策1T`);
     }
   }
+  // 戦法ダメージ後のpendingログをフラッシュ（回生・城盗りなど）
+  (st._pendingPostAttackLogs||[]).forEach(({cls, msg}) => addLog(st, cls, msg));
+  st._pendingPostAttackLogs = [];
 }
 
 function execCommand(st, me, isSelf, isTaisho=false) {
@@ -1778,20 +1801,71 @@ function dealDmg(st, target, dmg, attacker, attackerIsSelf, isMelee=false, isChi
   // 知者楽水防御（統率依存: 被ダメ-24%）
   if (target._chiryaku > 0)
     applyMod(`知者楽水防御`, Math.round(finalDmg * (1 - 0.24 * statScale(target._chiryaku_to||100))));
+  // ─ 与ダメ修正（同種乗算・バフ/デバフ間加算） ─
+  // 同種バフ: buffNet = 1-(1-b1)*(1-b2)*... 同種デバフも同様。バフ/デバフ間は加算で合成
+  const _atkBuffRates  = [];  // 与ダメバフ各増加率 (e.g. 0.30 = +30%)
+  const _atkDebufRates = [];  // 与ダメデバフ各減少率の大きさ (e.g. 0.28 = -28%)
+  const _atkModLabels  = [];
+
   // 深慮遠謀: 攻撃者に与ダメ-28%（知略依存）
-  if (attacker._shintyo > 0)
-    applyMod(`深慮遠謀デバフ`, Math.round(finalDmg * (1 - 0.28 * statScale(attacker._shintyo_chi||100))));
-  // 罵詈雑言: 通常攻撃・突撃の被ダメ50%カット
-  if (isMelee && target.baritauntProtect)
-    applyMod(`罵詈雑言防御`, Math.round(finalDmg * 0.5));
-  // 気勢衝天: 武勇最高者は兵刃与ダメ-30%、知略最高者は計略与ダメ-30%（各武勇依存）
-  if (!isChi && attacker.kiseiDebufBu)
-    applyMod(`気勢衝天デバフ`, Math.round(finalDmg * (1 - 0.30 * statScale(st.kiseiBu||100))));
-  if (isChi && attacker.kiseiDebufChi)
-    applyMod(`気勢衝天デバフ`, Math.round(finalDmg * (1 - 0.30 * statScale(st.kiseiBu||100))));
+  if (attacker._shintyo > 0) {
+    const r = Math.min(1, 0.28 * statScale(attacker._shintyo_chi||100));
+    _atkDebufRates.push(r); _atkModLabels.push(`深慮遠謀-${Math.round(r*100)}%`);
+  }
+  // 気勢衝天: 兵刃/計略最高者に与ダメ-30%（武勇依存）
+  if (!isChi && attacker.kiseiDebufBu) {
+    const r = Math.min(1, 0.30 * statScale(st.kiseiBu||100));
+    _atkDebufRates.push(r); _atkModLabels.push(`気勢衝天-${Math.round(r*100)}%`);
+  }
+  if (isChi && attacker.kiseiDebufChi) {
+    const r = Math.min(1, 0.30 * statScale(st.kiseiBu||100));
+    _atkDebufRates.push(r); _atkModLabels.push(`気勢衝天-${Math.round(r*100)}%`);
+  }
   // 毘沙門天: 攻撃者の与ダメ-9%（1T）
-  if ((attacker._bishaDebuf||0) > 0)
-    applyMod(`毘沙門天デバフ`, Math.round(finalDmg * (1 - attacker._bishaDebuf)));
+  if ((attacker._bishaDebuf||0) > 0) {
+    _atkDebufRates.push(attacker._bishaDebuf); _atkModLabels.push(`毘沙門天-${Math.round(attacker._bishaDebuf*100)}%`);
+  }
+  // 剛の武者: 攻撃者の計略与ダメ-75%
+  if (isChi && (attacker._gounoDebufT||0) > 0) {
+    _atkDebufRates.push(0.75); _atkModLabels.push(`剛の武者-75%`);
+  }
+  // 帰蝶デバフ: 攻撃者の与ダメ低下
+  if ((attacker._kichoDebuf||0) > 0) {
+    const r = Math.min(1, attacker._kichoDebuf);
+    _atkDebufRates.push(r); _atkModLabels.push(`帰蝶-${Math.round(r*100)}%`);
+  }
+  // 破陣: 攻撃者の与ダメ増加
+  if ((attacker.hajiRate||0) > 0) {
+    _atkBuffRates.push(attacker.hajiRate); _atkModLabels.push(`破陣+${Math.round(attacker.hajiRate*100)}%`);
+  }
+  // 特性: 攻撃者の与ダメ倍率（全体・兵刃・計略）
+  const _tAtk = attacker.traitAtkMult || 1;
+  if (_tAtk > 1) { _atkBuffRates.push(_tAtk - 1); _atkModLabels.push(`特性与ダメ+${Math.round((_tAtk-1)*100)}%`); }
+  else if (_tAtk < 1) { _atkDebufRates.push(1 - _tAtk); _atkModLabels.push(`特性与ダメ-${Math.round((1-_tAtk)*100)}%`); }
+  if (isMelee) {
+    const _tBu = attacker.traitBuAtkMult || 1;
+    if (_tBu > 1) { _atkBuffRates.push(_tBu - 1); _atkModLabels.push(`特性兵刃+${Math.round((_tBu-1)*100)}%`); }
+    else if (_tBu < 1) { _atkDebufRates.push(1 - _tBu); _atkModLabels.push(`特性兵刃-${Math.round((1-_tBu)*100)}%`); }
+  }
+  if (isChi) {
+    const _tChi = attacker.traitChiAtkMult || 1;
+    if (_tChi > 1) { _atkBuffRates.push(_tChi - 1); _atkModLabels.push(`特性計略+${Math.round((_tChi-1)*100)}%`); }
+    else if (_tChi < 1) { _atkDebufRates.push(1 - _tChi); _atkModLabels.push(`特性計略-${Math.round((1-_tChi)*100)}%`); }
+  }
+  // 与ダメ修正を一括適用（同種乗算・バフ/デバフ間加算）
+  if (_atkBuffRates.length > 0 || _atkDebufRates.length > 0) {
+    const _buffNet  = _atkBuffRates.reduce( (acc, r) => 1 - (1 - acc) * (1 - r), 0);
+    const _debufNet = _atkDebufRates.reduce((acc, r) => 1 - (1 - acc) * (1 - r), 0);
+    const _netMult  = Math.max(0, 1 + _buffNet - _debufNet);
+    const _netPct   = Math.round((_netMult - 1) * 100);
+    const _sign = _netPct >= 0 ? '+' : '';
+    applyMod(`与ダメ[${_atkModLabels.join('・')}]→${_sign}${_netPct}%`, Math.round(finalDmg * _netMult));
+  }
+
+  // ─ 被ダメ修正（目標の被ダメ軽減・増加） ─
+  // 罵詈雑言: 通常攻撃・突撃の被ダメ50%カット（能動戦法は対象外）
+  if (isMelee && target.baritauntProtect && !st._isActiveSkill)
+    applyMod(`罵詈雑言防御`, Math.round(finalDmg * 0.5));
   // 御旗楯無: 被ダメ時40%（武勇依存）で被ダメ-40%（知略依存）軽減
   const _hasMihata = target.slots?.some(s=>s?.name==='御旗楯無') || target.fixed?.name==='御旗楯無';
   if (_hasMihata) {
@@ -1801,25 +1875,9 @@ function dealDmg(st, target, dmg, attacker, attackerIsSelf, isMelee=false, isChi
       applyMod(`御旗楯無`, Math.round(finalDmg * (1 - _mhReduce)));
     }
   }
-  // 剛の武者: 攻撃者の計略与ダメ-75%
-  if (isChi && (attacker._gounoDebufT||0) > 0)
-    applyMod(`剛の武者デバフ`, Math.round(finalDmg * 0.25));
-  // 帰蝶デバフ: 攻撃者の知略・統率低下による与ダメ-22%
-  if ((attacker._kichoDebuf||0) > 0)
-    applyMod(`帰蝶デバフ`, Math.round(finalDmg * 0.78));
   // 十面埋伏: 防御側の被ダメ+18%（_jubai は増加率の合計値）
   if ((target._jubai||0) > 0)
     applyMod(`十面埋伏`, Math.round(finalDmg * (1 + target._jubai)));
-  // 破陣: 攻撃者の与ダメ増加
-  if ((attacker.hajiRate||0) > 0)
-    applyMod(`破陣バフ`, Math.round(finalDmg * (1 + attacker.hajiRate)));
-  // 特性: 攻撃者の与ダメ倍率（全体・兵刃・計略）
-  if ((attacker.traitAtkMult||1) !== 1)
-    applyMod(`特性与ダメ`, Math.round(finalDmg * attacker.traitAtkMult));
-  if (isMelee && (attacker.traitBuAtkMult||1) !== 1)
-    applyMod(`特性兵刃与ダメ`, Math.round(finalDmg * attacker.traitBuAtkMult));
-  if (isChi && (attacker.traitChiAtkMult||1) !== 1)
-    applyMod(`特性計略与ダメ`, Math.round(finalDmg * attacker.traitChiAtkMult));
   // 特性: 防御側の被ダメ軽減（全体・兵刃・計略）
   if ((target.traitDefReduce||0) > 0)
     applyMod(`特性被ダメ軽減`, Math.round(finalDmg * (1 - target.traitDefReduce)));
@@ -1896,7 +1954,9 @@ function dealDmg(st, target, dmg, attacker, attackerIsSelf, isMelee=false, isChi
     d2 = kr2.val;
     const actualShiro = dealDmg(st, target, d2, shiroAtk, shiroIsSelf, false, true);
     const shiroLogCls = shiroIsSelf ? 'log-ally' : 'log-enemy';
-    addLog(st, shiroLogCls, `  城盗り発動(${shiroAtk.name}→${target.name}) 計略[${actualShiro.toLocaleString()}]${kr2.label}（残${target.hp.toLocaleString()}）${st._lastMods||''}`);
+    // 城盗りログはトリガーした計略ダメのログの後に表示（pending機構を使用）
+    const _shiroMsg = `  城盗り発動(${shiroAtk.name}→${target.name}) 計略[${actualShiro.toLocaleString()}]${kr2.label}（残${target.hp.toLocaleString()}）${st._lastMods||''}`;
+    (st._pendingPostAttackLogs = st._pendingPostAttackLogs||[]).push({cls: shiroLogCls, msg: _shiroMsg});
     st._lastMods = '';
   }
 
@@ -1905,13 +1965,18 @@ function dealDmg(st, target, dmg, attacker, attackerIsSelf, isMelee=false, isChi
 
 // 回復処理（負傷兵プールからのみ回復可能）
 // 戻り値: { healed: 回復量, remainHp: 回復後のHP }
-// st, side: 水の如し「回復を受けた時48%で奇策+5%」の処理に使用
 function applyHeal(target, h, st=null, side=null) {
   if (target.healBlock) return { healed: 0, remainHp: target.hp };
   const healable = Math.min(h, target.injured || 0);
   if (healable <= 0) return { healed: 0, remainHp: target.hp };
   target.injured -= healable;
   target.hp = Math.min(target.maxHp - (target.dead || 0), target.hp + healable);
+  // 水の如し: 1T1度の回復時に奇策確率+5%
+  if (st && side && target.fixed?.name === '水の如し' && !target._mizuHealedThisTurn) {
+    target._mizuHealedThisTurn = true;
+    target.kiryakuRate = Math.min(1.0, (target.kiryakuRate || 0) + 0.05);
+    addLog(st, side === 'ally' ? 'log-ally' : 'log-enemy', `  水の如し(${target.name}) 回復→奇策+5%（計${Math.round(target.kiryakuRate*100)}%）`);
+  }
   return { healed: healable, remainHp: target.hp };
 }
 
@@ -1920,6 +1985,8 @@ function applyHeal(target, h, st=null, side=null) {
 // ═══════════════════════════════════════
 function processTurn(st, advMult, factionMult) {
   st.turn++;
+  // ターン開始時フラグリセット
+  ['ally','enemy'].forEach(side => st[side].forEach(u => { u._mizuHealedThisTurn = false; }));
   // 行動順プレビュー（速度順）
   const turnOrder = [
     ...st.ally.map((u,i)=>({u,side:'ally',i})),
@@ -1951,12 +2018,9 @@ function processTurn(st, advMult, factionMult) {
     const isSelf = side==='ally';
     if (me.hp <= 0) continue;
 
-    // 武将行動ヘッダー
     _unitSeq++;
-    addLog(st, isSelf?'log-ally':'log-enemy',
-      `${_unitSeq}. ${isSelf?'自陣営':'敵陣営'}: ${me.name} 兵数${me.hp.toLocaleString()} 統率${Math.round(me.to)},知略${Math.round(me.chi)},武勇${Math.round(me.bu)}`);
 
-    // ─ 継続ダメージ（行動直前に発動）─
+    // ─ 継続ダメージ（行動直前に発動）─ ※ヘッダーより先に処理し残兵数をリアルタイム表示
     // 火傷（74%/T）
     if ((me._kaen||0) > 0) {
       let d = applyRate(baseDmg(me.chi || 150, me.chi, me.hp), 74, me.chi || 150, true);
@@ -2023,16 +2087,16 @@ function processTurn(st, advMult, factionMult) {
       if (me.hp <= 0) continue;
     }
 
+    // 武将行動ヘッダー（継続ダメージ後の実兵数を表示）
+    addLog(st, isSelf?'log-ally':'log-enemy',
+      `${_unitSeq}. ${isSelf?'自陣営':'敵陣営'}: ${me.name} 兵数${me.hp.toLocaleString()} 統率${Math.round(me.to)},知略${Math.round(me.chi)},武勇${Math.round(me.bu)}`);
+
     const opp = isSelf ? st.enemy : st.ally;
     const allies = isSelf ? st.ally : st.enemy;
     const sideLabel = isSelf ? '[自]' : '[敵]';
     const logSide = isSelf ? 'log-ally' : 'log-enemy';
 
-    // ─ 受動・兵種・指揮戦法（準備期間: 麻痺・威圧でも発動） ─
-    execFixed(st, me, isSelf, advMult, factionMult, idx === 0, ['passive']);
-    (me.slots||[]).forEach(sk => {
-      if (sk) execSlot(st, sk, me, isSelf, advMult, factionMult, ['passive']);
-    });
+    // ─ 受動・兵種戦法は突撃後に発動（行動不能・封撃でも発動）─ !_skipAction 外の末尾で実行
 
     // 千成瓢箪: 保持武将の行動時に自軍2名（または全体）を回復
     if (me.fixed?.name === '千成瓢箪' && me.hp > 0) {
@@ -2088,6 +2152,9 @@ function processTurn(st, advMult, factionMult) {
       }
     }
 
+    // 電光雷轟の1ターン1回制限フラグをリセット
+    me._denkaiDone = false;
+
     // 威圧チェック（能動・通常攻撃・突撃のみ不能。受動・指揮は準備期間として発動済み）
     let _skipAction = false;
     if ((me.iatsuT||0) > 0) {
@@ -2109,10 +2176,12 @@ function processTurn(st, advMult, factionMult) {
 
     if (!_skipAction) {
     // ─ 能動戦法（固有→覚醒前伝授→覚醒後伝授の順） ─
+    st._isActiveSkill = true; // 罵詈雑言防御を能動戦法に適用しないフラグ
     execFixed(st, me, isSelf, advMult, factionMult, idx === 0, ['active']);
     (me.slots||[]).forEach(sk => {
       if (sk) execSlot(st, sk, me, isSelf, advMult, factionMult, ['active']);
     });
+    st._isActiveSkill = false;
 
     // ─ 通常攻撃（封撃チェック：通常攻撃のみ不可）─
     const myFuuseki = st.fuuseki[isSelf?'ally':'enemy'][idx];
@@ -2125,13 +2194,14 @@ function processTurn(st, advMult, factionMult) {
       const isTaunted = st.baritaunt > 0 && st.baritauntSide && st.baritauntSide !== actingSide
                        && Math.random() < (st.baritauntProb || 1.0);
 
-      // 乱舞のダメージ割合を事前計算（通常攻撃ダメージの指定%を残り2人の敵に与える）
-      let ranzuRate = 0;
+      // 乱舞の発動率リストを事前計算（重ね掛け対応：全ソースを合算して独立発動）
+      let ranzuRates = [];
       if (me.fixed?.name === '七本槍筆頭') {
         const bonus = Math.min(Math.floor((me.shichiHitCnt||0) / 5) * 0.13, 0.39);
-        ranzuRate = Math.min(0.92 + bonus, 1.0);
-      } else if ((me.ranzuT||0) > 0) {
-        ranzuRate = me.ranzuRate || 0.75;
+        ranzuRates.push(Math.min(0.92 + bonus, 1.0));
+      }
+      if ((me.ranzuList||[]).length > 0) {
+        me.ranzuList.filter(r=>r.t>0).forEach(r => ranzuRates.push(r.rate));
       }
 
       // 1回の通常攻撃＋乱舞を実行するローカル関数
@@ -2185,16 +2255,9 @@ function processTurn(st, advMult, factionMult) {
           st._pendingPostAttackLogs = [];
           if (me.fixed?.name === '七本槍筆頭') me.shichiHitCnt++;
           if (st.hiyokuSide && st.hiyokuSide !== (isSelf?'ally':'enemy')) st.hiyokuAccum += fin * 0.75;
-          // 沈魚落雁: 通常攻撃被弾時36%で状態異常
+          // 沈魚落雁: 通常攻撃被弾時に記録→突撃戦法発動後に処理
           if (tgt.slots?.some(s=>s?.name==='沈魚落雁') || tgt.fixed?.name==='沈魚落雁') {
-            if (Math.random() < 0.36) {
-              const r = Math.floor(Math.random()*3);
-              if (r===0) tryCtrl(me, u=>{u.confused=Math.max(u.confused||0,1);}, '混乱', st) && addLog(st,'log-ctrl',`  沈魚落雁(${tgt.name}): ${me.name}に混乱付与`);
-              else if (r===1) tryCtrl(me, u=>{u.musaku=Math.max(u.musaku||0,1);}, '無策', st) && addLog(st,'log-ctrl',`  沈魚落雁(${tgt.name}): ${me.name}に無策付与`);
-              else tryCtrl(me, u=>{u.hibi=Math.max(u.hibi||0,1);}, '疲弊', st) && addLog(st,'log-ctrl',`  沈魚落雁(${tgt.name}): ${me.name}に疲弊付与`);
-            } else {
-              addLog(st,'log-info',`  沈魚落雁(${tgt.name}) 確率により不発`);
-            }
+            _chingyoPending.push({ attacker: me, defender: tgt });
           }
           // 古今独歩: 通常攻撃被弾時48%で反撃＋離反4%獲得
           if (tgt.fixed?.name === '古今独歩' && Math.random() < 0.48) {
@@ -2238,25 +2301,27 @@ function processTurn(st, advMult, factionMult) {
             }
           }
         }
-        // 乱舞（基準ダメージからのパーセンテージのみ、ダメージ修正は適用されない）
-        if (ranzuRate > 0 && fin > 0) {
-          const ranzuTargets = opp.filter(t => t.hp > 0 && t !== tgt).slice(0, 2);
-          ranzuTargets.forEach(rTgt => {
-            // 乱舞ダメージ = 通常攻撃の実ダメージ(fin) × 乱舞率。乱数なし。
-            if ((me.hibi||0) > 0) return; // 疲弊中は0ダメ
-            if (rTgt.tesseki > 0) { rTgt.tesseki--; addLog(st,'log-buff',`  鉄壁発動！(${rTgt.name}) 乱舞ダメ無効`); return; }
-            const rDmg = Math.max(1, Math.round(fin * ranzuRate));
-            // HP直接減算（修正チェーンなし）
-            const rInjured = Math.round(rDmg * 0.9);
-            const rDead = rDmg - rInjured;
-            rTgt.injured = (rTgt.injured||0) + rInjured;
-            rTgt.dead = (rTgt.dead||0) + rDead;
-            rTgt.hp = Math.max(0, rTgt.hp - rDmg);
-            addLog(st, logSide, `  乱舞(${me.name}→${rTgt.name}) [${rDmg.toLocaleString()}]（残${rTgt.hp.toLocaleString()}）`);
-            if (me.fixed?.name === '七本槍筆頭') me.shichiHitCnt++;
-            if (st.hiyokuSide && st.hiyokuSide !== (isSelf?'ally':'enemy')) st.hiyokuAccum += rDmg * 0.75;
-          });
-        }
+        // 乱舞（重ね掛け対応：ranzuRatesの各エントリーが独立して発動）
+        ranzuRates.forEach(ranzuRate => {
+          if (ranzuRate > 0 && fin > 0) {
+            const ranzuTargets = opp.filter(t => t.hp > 0 && t !== tgt).slice(0, 2);
+            ranzuTargets.forEach(rTgt => {
+              // 乱舞ダメージ = 通常攻撃の実ダメージ(fin) × 乱舞率。乱数なし。
+              if ((me.hibi||0) > 0) return; // 疲弊中は0ダメ
+              if (rTgt.tesseki > 0) { rTgt.tesseki--; addLog(st,'log-buff',`  鉄壁発動！(${rTgt.name}) 乱舞ダメ無効`); return; }
+              const rDmg = Math.max(1, Math.round(fin * ranzuRate));
+              // HP直接減算（修正チェーンなし）
+              const rInjured = Math.round(rDmg * 0.9);
+              const rDead = rDmg - rInjured;
+              rTgt.injured = (rTgt.injured||0) + rInjured;
+              rTgt.dead = (rTgt.dead||0) + rDead;
+              rTgt.hp = Math.max(0, rTgt.hp - rDmg);
+              addLog(st, logSide, `  乱舞(${me.name}→${rTgt.name}) [${rDmg.toLocaleString()}]（残${rTgt.hp.toLocaleString()}）`);
+              if (me.fixed?.name === '七本槍筆頭') me.shichiHitCnt++;
+              if (st.hiyokuSide && st.hiyokuSide !== (isSelf?'ally':'enemy')) st.hiyokuAccum += rDmg * 0.75;
+            });
+          }
+        });
       };
 
       // 突撃戦法を1回実行するヘルパー
@@ -2267,21 +2332,42 @@ function processTurn(st, advMult, factionMult) {
         });
       };
 
+      // 沈魚落雁の保留リスト（突撃戦法発動後に適用）
+      let _chingyoPending = [];
+      const processChingyoPending = () => {
+        _chingyoPending.forEach(({ attacker, defender }) => {
+          if (attacker.hp <= 0) return; // 攻撃者が既に撃破されていれば不発
+          if (Math.random() < 0.36) {
+            const r = Math.floor(Math.random()*3);
+            if (r===0) tryCtrl(attacker, u=>{u.confused=Math.max(u.confused||0,1);}, '混乱', st) && addLog(st,'log-ctrl',`  沈魚落雁(${defender.name}): ${attacker.name}に混乱付与`);
+            else if (r===1) tryCtrl(attacker, u=>{u.musaku=Math.max(u.musaku||0,1);}, '無策', st) && addLog(st,'log-ctrl',`  沈魚落雁(${defender.name}): ${attacker.name}に無策付与`);
+            else tryCtrl(attacker, u=>{u.hibi=Math.max(u.hibi||0,1);}, '疲弊', st) && addLog(st,'log-ctrl',`  沈魚落雁(${defender.name}): ${attacker.name}に疲弊付与`);
+          } else {
+            addLog(st,'log-info',`  沈魚落雁(${defender.name}) 確率により不発`);
+          }
+        });
+        _chingyoPending = [];
+      };
+
       doOneAtk('通常攻撃');
       doStrike(); // 通常攻撃後に突撃判定
+      processChingyoPending(); // 突撃戦法発動後に沈魚落雁を適用
 
       // 連撃: 確定連撃（東国無双の麗・前後挟撃等）または鬼若子の50%連撃
       if ((me.rengiT||0) > 0 || me.fixed?.name === '東国無双の麗') {
         doOneAtk('連撃');
         doStrike(); // 連撃後にも突撃判定
+        processChingyoPending();
       } else if ((me.rengi50T||0) > 0) {
         if (Math.random() < 0.50) {
           doOneAtk('連撃(50%)');
           doStrike(); // 連撃後にも突撃判定
+          processChingyoPending();
         } else {
           addLog(st, 'log-info', `  鬼若子による連撃は確率により不発`);
         }
       }
+
     }
 
     // ─ 行動終了後の受動効果 ─
@@ -2315,30 +2401,47 @@ function processTurn(st, advMult, factionMult) {
       }
     });
 
-    // 比翼連理: 大将（idx===0）の行動後に発動（保持サイドの大将であること）
+    // 比翼連理: 大将（idx===0）の行動後に発動（保持サイドの大将が発動者）
+    // 発動者は大将。知略・奇策判定も大将のもの。蓄積は発動判定のたびにリセット
     if (idx === 0 && st.hiyokuSide && st.hiyokuSide === (isSelf?'ally':'enemy')) {
       const hSide = st.hiyokuSide;
       const holder = st[hSide].find(b => b.hp > 0 && b.fixed?.name === '比翼連理');
+      const taisho = st[hSide][0]; // 発動者は大将
       const logCls = hSide === 'ally' ? 'log-ally' : 'log-enemy';
-      if (holder && st.hiyokuAccum > 0) {
+      if (holder && taisho && st.hiyokuAccum > 0) {
+        const savedAccum = st.hiyokuAccum;
         if (Math.random() < 0.80) {
+          st.hiyokuAccum = 0; // 発動成功時のみ蓄積リセット
           const oppArr = hSide === 'ally' ? st.enemy : st.ally;
           const t = pickTarget(oppArr);
           if (t) {
-            const base = baseDmg(holder.chi, t.chi, holder.hp);
-            const d = Math.round((base*0.92 + st.hiyokuAccum*0.0001) * rand4());
-            const actualDmg = dealDmg(st, t, d, holder, hSide==='ally', false, true);
+            // 大将の知略で計算、大将の奇策判定も適用
+            const base = baseDmg(taisho.chi, t.chi, taisho.hp);
+            let d = Math.round((base*0.92 + savedAccum*0.3) * rand4());
+            const kr = applyKiryaku(d, taisho, st, hSide==='ally');
+            d = kr.val;
+            const actualDmg = dealDmg(st, t, d, taisho, hSide==='ally', false, true);
             const sl = hSide === 'ally' ? '[自]' : '[敵]';
-            addLog(st, logCls, `  ${sl} 比翼連理(${holder.name}→${t.name}) 計略[${actualDmg.toLocaleString()}]（残${t.hp.toLocaleString()}） 蓄積:${Math.round(st.hiyokuAccum).toLocaleString()}${st._lastMods||''}`);
+            addLog(st, logCls, `  ${sl} 比翼連理(${taisho.name}→${t.name}) 計略[${actualDmg.toLocaleString()}]${kr.label}（残${t.hp.toLocaleString()}） 蓄積:${Math.round(savedAccum).toLocaleString()}${st._lastMods||''}`);
             st._lastMods = '';
-            st.hiyokuAccum = 0;
+            // 城盗りなどのpendingログをフラッシュ（比翼連理は計略ダメなので城盗りが発動しうる）
+            (st._pendingPostAttackLogs||[]).forEach(({cls, msg}) => addLog(st, cls, msg));
+            st._pendingPostAttackLogs = [];
           }
         } else {
-          addLog(st, logCls, `  比翼連理 確率により不発（蓄積: ${Math.round(st.hiyokuAccum).toLocaleString()}）`);
+          addLog(st, logCls, `  比翼連理 確率により不発（蓄積継続: ${Math.round(savedAccum).toLocaleString()}）`);
         }
       }
     }
     } // end !_skipAction
+
+    // ─ 受動・兵種戦法（行動不能・封撃時でも発動） ─
+    if (me.hp > 0) {
+      execFixed(st, me, isSelf, advMult, factionMult, idx === 0, ['passive']);
+      (me.slots||[]).forEach(sk => {
+        if (sk) execSlot(st, sk, me, isSelf, advMult, factionMult, ['passive']);
+      });
+    }
   }
 
   // ─ 指揮戦法の継続効果 ─
@@ -2463,9 +2566,11 @@ function processTurn(st, advMult, factionMult) {
       }
       // 非常の器・尼御台の休養1T後リセット
       if (me._kyuyo1T) { me._kyuyo1T = false; me.kyuyoRate = 0; }
-      if (me.ranzuT > 0) {
-        me.ranzuT--;
-        if (me.ranzuT === 0) me.buff_atkDmg = 1.0;
+      if ((me.ranzuList||[]).length > 0) {
+        me.ranzuList = me.ranzuList.map(r=>({...r, t:r.t-1}));
+        const hasAtkDmgBuff = me.ranzuList.some(r => r.t > 0 && r.atkDmg);
+        if (!hasAtkDmgBuff) me.buff_atkDmg = 1.0;
+        me.ranzuList = me.ranzuList.filter(r=>r.t>0);
       }
       // 軍神大将技: 毎ターン追加1回溜め獲得（大将のみ）
       if (_mi === 0 && me.fixed?.name === '軍神' && me.hp > 0) {
