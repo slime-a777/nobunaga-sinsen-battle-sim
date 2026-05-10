@@ -35,7 +35,7 @@ const SENPO_DB = {
   深慮遠謀A: {name:'深慮遠謀',type:'command',prob:1.0,kind:'デバフ',desc:'敵2名の与ダメ-28%（3T）'},
   乗勝追撃:  {name:'乗勝追撃',type:'strike',prob:.30,kind:'兵刃',desc:'通常攻撃後 敵全体に追加兵刃136%'},
   理非曲直:  {name:'理非曲直',type:'strike',prob:.35,kind:'兵刃',desc:'通常攻撃後 敵1名 兵刃192%＋混乱1T'},
-  一触即発:  {name:'一触即発',type:'strike',prob:.35,kind:'兵刃',desc:'通常攻撃後 対象の統率-70×statScale(自統率)（1T）＋無策1T付与'},
+  一触即発:  {name:'一触即発',type:'strike',prob:.40,kind:'兵刃',desc:'通常攻撃後 対象の統率-70×statScale(自統率)（1T）＋無策1T付与'},
   // ─ 事件戦法
   城盗り:    {name:'城盗り',type:'active',prob:.45,kind:'計略',desc:'知略+33(2T)＋敵2〜3名に追加計略106%予約'},
   // ─ 追加戦法

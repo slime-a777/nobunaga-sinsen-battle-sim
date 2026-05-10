@@ -187,8 +187,8 @@ function execFixed(st, me, isSelf, advMult, isTaisho=false, typeFilter=null) {
         addLog(st,'log-ctrl',`    中毒2T付与`);
       }
       if (Math.random() < 0.55) {
-        t._kaen = (t._kaen||0) + 2;
-        addLog(st,'log-ctrl',`    火傷2T付与`);
+        t._kaen = (t._kaen||0) + 2; t._kaenRate = 96;
+        addLog(st,'log-ctrl',`    火傷2T(96%/T)付与`);
       }
     });
   }
@@ -1000,6 +1000,7 @@ function execFixed(st, me, isSelf, advMult, isTaisho=false, typeFilter=null) {
     const cnt_opp = Math.random() < 0.5 ? 2 : 3;
     opp.filter(o=>o.hp>0).slice(0, cnt_opp).forEach(t=>{
       t.suikouT = Math.max(t.suikouT||0, 2);
+      t.suikouRate = 88;
       t.suikouPower = me.chi;
       t.suikouKirRate = me.kiryakuRate||0;
       t.suikouKirBonus = me.kiryakuBonus||0;
@@ -1445,7 +1446,7 @@ function execSlot(st, sk, me, isSelf, advMult, typeFilter=null) {
     });
   } else if (n==='嚢沙之計') {
     opp.filter(o=>o.hp>0).slice(0,2).forEach(t=>{
-      t.suikouT = 2; t.suikouPower = me.chi; t.suikouKirRate = me.kiryakuRate||0; t.suikouKirBonus = me.kiryakuBonus||0;
+      t.suikouT = 2; t.suikouRate = 102; t.suikouPower = me.chi; t.suikouKirRate = me.kiryakuRate||0; t.suikouKirBonus = me.kiryakuBonus||0;
       addLog(st,'log-ctrl',`  嚢沙之計(${t.name}) 水攻め2T+計略被ダメ+30%`);
     });
   } else if (n==='霹靂一撃') {
@@ -1484,9 +1485,9 @@ function execSlot(st, sk, me, isSelf, advMult, typeFilter=null) {
     addLog(st,'log-buff',`  一力当先(${me.name}) 通常攻撃+50%＋乱舞75%(2T)`);
   } else if (n==='水攻干計') {
     opp.filter(o=>o.hp>0).forEach(t=>{
-      t.suikouT = 2; t.suikouPower = me.chi; t.suikouKirRate = me.kiryakuRate||0; t.suikouKirBonus = me.kiryakuBonus||0;
+      t.suikouT = 2; t.suikouRate = 98; t.suikouPower = me.chi; t.suikouKirRate = me.kiryakuRate||0; t.suikouKirBonus = me.kiryakuBonus||0;
       t.healBlock = true;
-      addLog(st,'log-ctrl',`  水攻干計(${t.name}) 水攻め2T＋回復不可`);
+      addLog(st,'log-ctrl',`  水攻干計(${t.name}) 水攻め2T(98%/T)＋回復不可`);
     });
   } else if (n==='城盗り') {
     // 知略+33バフ（2T）を付与
@@ -1524,8 +1525,8 @@ function execSlot(st, sk, me, isSelf, advMult, typeFilter=null) {
   } else if (n==='紅蓮の炎') {
     opp.filter(o=>o.hp>0).forEach(t=>{
       const r = calcHit(baseDmg(me.chi,t.chi,me.hp),104,me.chi,t);
-      t._kaen = (t._kaen||0) + 2; t._kaenKirRate = me.kiryakuRate||0; t._kaenKirBonus = me.kiryakuBonus||0;
-      addLog(st,logSide,`  [${side}] 紅蓮の炎(${me.name}→${t.name}) 計略[${r.dmg.toLocaleString()}]${r.label}（残${t.hp.toLocaleString()}）+火傷2T${st._lastMods||''}`);
+      t._kaen = (t._kaen||0) + 2; t._kaenRate = 74; t._kaenKirRate = me.kiryakuRate||0; t._kaenKirBonus = me.kiryakuBonus||0;
+      addLog(st,logSide,`  [${side}] 紅蓮の炎(${me.name}→${t.name}) 計略[${r.dmg.toLocaleString()}]${r.label}（残${t.hp.toLocaleString()}）+火傷2T(74%/T)${st._lastMods||''}`);
       st._lastMods = '';
     });
   } else if (n==='所向無敵') {
@@ -1993,7 +1994,7 @@ function execSlot(st, sk, me, isSelf, advMult, typeFilter=null) {
       addLog(st,'log-ctrl',`  看破: ${t.name} 知略-18(2T)`);
     }
   } else if (n==='火計') {
-    const t=pickTarget(opp);if(t){t._kaen=(t._kaen||0)+3;t._kaenKirRate=me.kiryakuRate||0;t._kaenKirBonus=me.kiryakuBonus||0;addLog(st,'log-ctrl',`  火計: ${t.name} 火傷3T付与`);}
+    const t=pickTarget(opp);if(t){t._kaen=(t._kaen||0)+3;t._kaenRate=70;t._kaenKirRate=me.kiryakuRate||0;t._kaenKirBonus=me.kiryakuBonus||0;addLog(st,'log-ctrl',`  火計: ${t.name} 火傷3T(70%/T)付与`);}
   } else if (n==='殿軍') {
     const buGain=30; me.bu=(me.bu||100)+buGain; me._tongunBuT=2;
     addLog(st,'log-buff',`  殿軍: ${me.name} 武勇+${buGain}(2T)`);
@@ -2014,7 +2015,7 @@ function execSlot(st, sk, me, isSelf, advMult, typeFilter=null) {
     opp.filter(o=>o.hp>0).slice(0,2).forEach(t=>{t._bishaDebuf=(t._bishaDebuf||0)+0.15;t._bishaDebufT=Math.max(t._bishaDebufT||0,2);});
     addLog(st,'log-ctrl',`  威圧(戦法): 敵2名 与ダメ-15%(2T)`);
   } else if (n==='水計') {
-    const t=pickTarget(opp);if(t){t.suikouT=3;t.suikouPower=me.chi;t.suikouKirRate=me.kiryakuRate||0;t.suikouKirBonus=me.kiryakuBonus||0;addLog(st,'log-ctrl',`  水計: ${t.name} 水攻め3T付与`);}
+    const t=pickTarget(opp);if(t){t.suikouT=3;t.suikouRate=70;t.suikouPower=me.chi;t.suikouKirRate=me.kiryakuRate||0;t.suikouKirBonus=me.kiryakuBonus||0;addLog(st,'log-ctrl',`  水計: ${t.name} 水攻め3T(70%/T)付与`);}
   } else if (n==='猛撃') {
     me.critRate=Math.min(1.0,(me.critRate||0)+0.15); me._mogekiCritT=2;
     addLog(st,'log-buff',`  猛撃: ${me.name} 会心+15%(2T)`);

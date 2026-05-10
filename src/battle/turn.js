@@ -39,9 +39,10 @@ function processTurn(st, advMult) {
     _unitSeq++;
 
     // ─ 継続ダメージ（行動直前に発動）─
-    // 火傷（74%/T）
+    // 火傷（戦法ごとに異なるrate: _kaenRate、デフォルト74%/T）
     if ((me._kaen||0) > 0) {
-      let d = applyRate(baseDmg(me.chi || 150, me.chi, me.hp), 74, me.chi || 150, true);
+      const _kaenRate = me._kaenRate || 74;
+      let d = applyRate(baseDmg(me.chi || 150, me.chi, me.hp), _kaenRate, me.chi || 150, true);
       let _kaenLabel = '';
       if ((me._kaenKirRate||0) > 0 && Math.random() < me._kaenKirRate) { d = Math.round(d * (1.5 + (me._kaenKirBonus||0))); _kaenLabel = '⚡奇策'; }
       me.injured = (me.injured||0) + Math.round(d*0.9);
@@ -51,10 +52,11 @@ function processTurn(st, advMult) {
       me._kaen--;
       if (me.hp <= 0) continue;
     }
-    // 水攻め（102%/T）
+    // 水攻め（戦法ごとに異なるrate: suikouRate、デフォルト102%/T）
     if ((me.suikouT||0) > 0) {
       const pow = me.suikouPower || 180;
-      let d = applyRate(baseDmg(pow, me.chi, me.hp), 102, pow, true);
+      const _suikouRate = me.suikouRate || 102;
+      let d = applyRate(baseDmg(pow, me.chi, me.hp), _suikouRate, pow, true);
       let _suikouLabel = '';
       if ((me.suikouKirRate||0) > 0 && Math.random() < me.suikouKirRate) { d = Math.round(d * (1.5 + (me.suikouKirBonus||0))); _suikouLabel = '⚡奇策'; }
       me.injured = (me.injured||0) + Math.round(d*0.9);

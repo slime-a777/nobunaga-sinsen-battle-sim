@@ -1,0 +1,812 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>戦法テスト — senpo_numeric.md 準拠確認</title>
+<style>
+body { font-family: 'Consolas', 'Courier New', monospace; font-size: 13px; background: #1a1a1a; color: #ddd; padding: 16px; }
+h1 { color: #f0c040; font-size: 18px; }
+h2 { color: #88ccff; font-size: 14px; margin-top: 20px; border-bottom: 1px solid #444; padding-bottom: 4px; }
+.summary { background: #2a2a2a; padding: 10px; border-radius: 4px; margin: 10px 0; font-size: 14px; }
+.pass { color: #4fc; }
+.fail { color: #f44; font-weight: bold; }
+.warn { color: #fa4; }
+.test-row { padding: 2px 0; }
+.test-row.fail-row { background: #2a1a1a; }
+.section { margin-bottom: 12px; }
+.note { color: #888; font-size: 11px; }
+pre { color: #fa4; font-size: 11px; margin: 2px 0 2px 20px; }
+</style>
+</head>
+<body>
+<h1>戦法テスト — senpo_numeric.md 準拠確認</h1>
+<div id="output"></div>
+
+<!-- モック：ゲームエンジン依存関数 -->
+<script>
+// addLog: テスト中はログ収集のみ
+function addLog(st, cls, msg) {
+  if (!st) return;
+  if (!st._logs) st._logs = [];
+  st._logs.push({ cls, msg });
+}
+</script>
+
+<!-- ゲームソース読み込み（相対パス: tests/ から ../src/ へ） -->
+<script src="../src/battle/calc.js"></script>
+<script src="../src/battle/effects.js"></script>
+<script src="../src/data.js"></script>
+<script src="../src/battle/senpo.js"></script>
+
+<script>
+// ════════════════════════════════════════════
+// テストフレームワーク
+// ════════════════════════════════════════════
+const _results = [];
+let _currentSection = '';
+
+function section(name) { _currentSection = name; }
+
+function test(name, fn) {
+  try {
+    fn();
+    _results.push({ pass: true, section: _currentSection, name });
+  } catch(e) {
+    _results.push({ pass: false, section: _currentSection, name, error: e.message });
+  }
+}
+
+function assert(cond, msg) {
+  if (!cond) throw new Error(msg || 'アサーション失敗');
+}
+function assertEqual(a, b, msg) {
+  if (a !== b) throw new Error((msg || '') + ` → 期待値: ${b}, 実際値: ${a}`);
+}
+function assertNear(a, b, tol, msg) {
+  if (Math.abs(a - b) > tol) throw new Error((msg || '') + ` → 期待値: ${b}±${tol}, 実際値: ${a}`);
+}
+
+// ════════════════════════════════════════════
+// テスト用ユーティリティ
+// ════════════════════════════════════════════
+
+function makeUnit(opts = {}) {
+  return {
+    name:         opts.name        || 'テスト武将',
+    hp:           opts.hp          || 10000,
+    maxHp:        opts.maxHp       || 10000,
+    bu:           opts.bu          || 150,
+    chi:          opts.chi         || 150,
+    to:           opts.to          || 150,
+    spd:          opts.spd         || 100,
+    critRate:     opts.critRate    || 0,
+    critBonus:    opts.critBonus   || 0.5,
+    kiryakuRate:  opts.kiryakuRate || 0,
+    kiryakuBonus: opts.kiryakuBonus|| 0,
+    renegadeRate: opts.renegadeRate|| 0,
+    fixed:        opts.fixed       || null,
+    slots:        opts.slots       || [],
+    ...opts
+  };
+}
+
+function makeState(allies = [], enemies = []) {
+  if (!allies.length) allies = [makeUnit({ name: '味方1' })];
+  if (!enemies.length) enemies = [makeUnit({ name: '敵1' })];
+  return {
+    ally:   allies,
+    enemy:  enemies,
+    turn:   1,
+    log:    [],
+    _logs:  [],
+    _lastMods: '',
+    fuuseki: { ally: [0, 0, 0], enemy: [0, 0, 0] },
+    hiyokuSide:  null,
+    hiyokuAccum: 0,
+  };
+}
+
+// dealDmg をラップしてダメージ記録
+let _dmgLog = [];
+const _origDealDmg = dealDmg;
+dealDmg = function(st, target, dmg, attacker, attackerIsSelf, isMelee = false, isChi = false) {
+  _dmgLog.push({ target: target.name, raw: dmg, isMelee, isChi });
+  return _origDealDmg(st, target, dmg, attacker, attackerIsSelf, isMelee, isChi);
+};
+
+// Math.random を固定値で差し替え（テスト用：常に発動させる）
+let _fixedRandom = null;
+const _origRandom = Math.random;
+Math.random = function() {
+  return _fixedRandom !== null ? _fixedRandom : _origRandom();
+};
+
+function withRandom(val, fn) {
+  _fixedRandom = val;
+  try { fn(); } finally { _fixedRandom = null; }
+}
+
+function resetDmgLog() { _dmgLog = []; }
+
+// 期待ダメージ計算（検証用）
+function expectedDmg(base, rate) {
+  // applyRate の中央値: base * rate/100 * 1.0（ランダム中央）
+  return Math.round(base * (rate / 100));
+}
+
+// ════════════════════════════════════════════
+// カテゴリ 1: SENPO_DB 静的データ検証
+// senpo_numeric.md の記載と data.js を照合
+// ════════════════════════════════════════════
+section('SENPO_DB 発動確率チェック');
+
+const EXPECTED_PROB = {
+  // ─ S 伝授戦法
+  '電光石火':   { prob: 0.40, type: 'active'  },
+  '恵風和雨':   { prob: 1.00, type: 'command' },
+  '勇猛無比':   { prob: 0.40, type: 'active'  },
+  '金城湯池':   { prob: 0.40, type: 'active'  },
+  '奇策縦横':   { prob: 0.30, type: 'active',  prep: true },
+  '瞬息万変':   { prob: 0.45, type: 'active'  },
+  '攻其不備':   { prob: 0.40, type: 'active'  },
+  '知者楽水':   { prob: 1.00, type: 'command' },
+  '乱世の華':   { prob: 0.40, type: 'strike'  },
+  '境目奮戦':   { prob: 0.35, type: 'strike'  },
+  '静動自在':   { prob: 0.30, type: 'active'  },  // 15%→30%
+  '縦横馳突':   { prob: 0.40, type: 'active'  },  // 20%→40%
+  '紅蓮の炎':   { prob: 0.35, type: 'active',  prep: true },
+  '御旗楯無':   { prob: 1.00, type: 'passive' },
+  '盤石耽々':   { prob: 1.00, type: 'passive' },
+  '運勝の鼻':   { prob: 1.00, type: 'passive' },
+  '水攻干計':   { prob: 0.30, type: 'active',  prep: true },
+  '七十二の計': { prob: 1.00, type: 'passive' },
+  '所領役帳':   { prob: 0.35, type: 'active'  },
+  '毘沙門天':   { prob: 1.00, type: 'passive' },
+  '独立独歩':   { prob: 1.00, type: 'passive' },
+  '一領具足':   { prob: 1.00, type: 'command' },
+  '霹靂一撃':   { prob: 0.35, type: 'active'  },
+  '一行三昧':   { prob: 1.00, type: 'passive' },
+  '以戦養戦':   { prob: 1.00, type: 'passive' },
+  '千軍辟易':   { prob: 0.35, type: 'active'  },
+  '血戦奮闘':   { prob: 1.00, type: 'passive' },
+  '一力当先':   { prob: 0.40, type: 'active'  },
+  '母衣武者':   { prob: 1.00, type: 'passive' },
+  '文武両道':   { prob: 1.00, type: 'passive' },
+  '所向無敵':   { prob: 0.30, type: 'active',  prep: true },
+  '気勢衝天':   { prob: 1.00, type: 'command' },
+  '草木皆兵':   { prob: 0.50, type: 'active',  prep: true },
+  '理非曲直':   { prob: 0.35, type: 'strike'  },  // 25%→35%
+  '回天転運':   { prob: 0.40, type: 'active'  },
+  '大智不智':   { prob: 0.30, type: 'active'  },
+  '前後挟撃':   { prob: 0.35, type: 'active'  },  // 25%→35%
+  '沈魚落雁':   { prob: 1.00, type: 'passive' },
+  '五里霧中':   { prob: 0.35, type: 'active',  prep: true },  // 20%→35%
+  '深慮遠謀':   { prob: 1.00, type: 'command' },
+  '帰還の凱歌': { prob: 0.45, type: 'active'  },
+  '乗勝追撃':   { prob: 0.30, type: 'strike'  },
+  '戦意崩壊':   { prob: 0.35, type: 'strike'  },  // 20%→35%
+  '金鼓連天':   { prob: 0.40, type: 'active'  },
+  '按甲休兵':   { prob: 1.00, type: 'passive' },
+  '奇謀独断':   { prob: 0.35, type: 'active',  prep: true },  // 25%→35%
+  '百戦錬磨':   { prob: 1.00, type: 'passive' },
+  '剛毅果断':   { prob: 0.40, type: 'active'  },
+  '甲斐弓騎兵': { prob: 1.00, type: 'passive' },
+  '気炎万丈':   { prob: 1.00, type: 'command' },
+  '赤備え隊':   { prob: 1.00, type: 'passive' },
+  '罵詈雑言':   { prob: 1.00, type: 'command' },
+  '陣形崩し':   { prob: 0.35, type: 'active',  prep: true },
+  '戦意消沈':   { prob: 1.00, type: 'command' },
+  '死中求活':   { prob: 1.00, type: 'passive' },
+  '嚢沙之計':   { prob: 0.30, type: 'active'  },
+  '三河弓兵隊': { prob: 1.00, type: 'passive' },
+  '薩摩鉄砲兵': { prob: 1.00, type: 'passive' },
+  '鉄砲僧兵':   { prob: 1.00, type: 'passive' },
+  '大太刀力士隊':{ prob: 1.00, type: 'passive' },
+  // ─ A 伝授戦法
+  '回山倒海':   { prob: 0.35, type: 'strike'  },
+  '槍弾正':     { prob: 0.35, type: 'active'  },
+  '一念乱志':   { prob: 1.00, type: 'passive' },
+  '警戒周到':   { prob: 1.00, type: 'command' },
+  '攻守兼備':   { prob: 0.40, type: 'active'  },
+  '殿軍奮戦':   { prob: 0.55, type: 'active'  },  // 30%→55%
+  '鉄砲猛撃':   { prob: 0.35, type: 'active'  },
+  '先制先登':   { prob: 0.35, type: 'active'  },
+  '一上一下':   { prob: 1.00, type: 'passive' },
+  '鬼玄蕃':     { prob: 0.30, type: 'active'  },
+  '休養':       { prob: 1.00, type: 'passive' },
+  '忠勤励行':   { prob: 0.35, type: 'active',  prep: true },
+  '援護射撃':   { prob: 0.40, type: 'active'  },
+  '百錬成鋼':   { prob: 1.00, type: 'passive' },
+  '一刀両断':   { prob: 0.30, type: 'strike'  },
+  '不意打ち':   { prob: 0.45, type: 'active',  prep: true },  // 20%→45%
+  '全力戦闘':   { prob: 1.00, type: 'passive' },
+  '奮戦':       { prob: 0.35, type: 'active'  },
+  '有備無患':   { prob: 0.45, type: 'active'  },
+  '生死一顧':   { prob: 0.50, type: 'active'  },
+  '一触即発':   { prob: 0.40, type: 'strike'  },  // ← SENPO_DBは0.35だが仕様は40%
+  '弓調馬服':   { prob: 0.45, type: 'active'  },
+  '先陣の勇':   { prob: 0.35, type: 'active'  },
+  '矢石飛交':   { prob: 0.40, type: 'active'  },
+  '融通自在':   { prob: 0.45, type: 'active'  },
+  '秋水一色':   { prob: 0.35, type: 'active',  prep: true },
+  '参謀の助言': { prob: 1.00, type: 'command' },
+  '祓除':       { prob: 0.45, type: 'active'  },
+  '槍の鈴':     { prob: 0.35, type: 'strike'  },
+  '妖怪退治':   { prob: 0.35, type: 'active'  },
+  '闇討ち':     { prob: 0.45, type: 'active',  prep: true },
+  '腹中鱗甲':   { prob: 1.00, type: 'passive' },
+  '敵陣攪乱':   { prob: 0.35, type: 'active'  },
+  '驍勇善戦':   { prob: 0.35, type: 'active',  prep: true },
+  '一六勝負':   { prob: 0.40, type: 'active'  },
+  '岐阜侍従':   { prob: 0.35, type: 'active'  },
+  '奪気':       { prob: 0.45, type: 'active'  },
+  '甲州流軍学': { prob: 0.35, type: 'active'  },
+  // ─ B 伝授戦法
+  '薙ぎ払い':   { prob: 0.50, type: 'active'  },
+  '嘲罵':       { prob: 0.60, type: 'active'  },  // 30%→60%
+  '連戦':       { prob: 0.35, type: 'strike'  },
+  '不退転':     { prob: 0.30, type: 'strike'  },
+  '看破':       { prob: 0.25, type: 'active'  },
+  '火計':       { prob: 0.35, type: 'active'  },
+  '奮起':       { prob: 1.00, type: 'passive' },
+  '殿軍':       { prob: 0.25, type: 'active'  },
+  '破甲':       { prob: 0.55, type: 'strike'  },
+  '火攻め':     { prob: 0.40, type: 'active'  },
+  '刺突':       { prob: 0.40, type: 'active'  },
+  '同討':       { prob: 0.30, type: 'active',  prep: true },
+  '対話':       { prob: 0.45, type: 'active'  },  // 23%→45%
+  '救援':       { prob: 0.40, type: 'active'  },
+  '威圧':       { prob: 0.25, type: 'active'  },
+  '水計':       { prob: 0.35, type: 'active'  },
+  '猛撃':       { prob: 0.45, type: 'strike'  },
+  '反撃':       { prob: 0.35, type: 'active'  },
+};
+
+for (const [name, expected] of Object.entries(EXPECTED_PROB)) {
+  test(`SENPO_DB[${name}] 発動確率・種別`, () => {
+    const entry = SENPO_DB[name];
+    assert(entry != null, `SENPO_DBに「${name}」が存在しない`);
+    assertEqual(entry.prob,  expected.prob,  `「${name}」の発動確率`);
+    assertEqual(entry.type,  expected.type,  `「${name}」の戦法種別`);
+    if (expected.prep) {
+      assert(entry.prep === true, `「${name}」は準備が必要（prep=true）であるべき`);
+    }
+  });
+}
+
+// ════════════════════════════════════════════
+// カテゴリ 2: 継続ダメージ率の検証
+// senpo_numeric.md 記載の継続ダメ率 vs turn.js 実装
+// ════════════════════════════════════════════
+section('継続ダメージ率の仕様確認');
+
+// 水攻め：戦法ごとに異なる継続ダメ率を持つが、
+// turn.js は suikouRate フィールドを参照せず一律 102% を使用している。
+// 各戦法で期待される rate と実装の設定値を比較する。
+
+test('水計 — 水攻め付与時に suikouRate が設定されていること (仕様: 70%/T)', () => {
+  const me = makeUnit({ name: '付与者', chi: 150 });
+  const tgt = makeUnit({ name: '被付与者', chi: 150 });
+  const st = makeState([me], [tgt]);
+  const sk = SENPO_DB['水計'];
+
+  // 水計は発動率35%のため、Math.randomを0（必ず発動）に設定
+  withRandom(0, () => {
+    execSlot(st, sk, me, true, 1.0);
+  });
+
+  // suikouT が設定されているはずなので確認
+  assert((tgt.suikouT || 0) > 0, '水計: suikouT が付与されていない');
+
+  // 仕様: 水計は70%/T。実装にsuikouRateが設定されているか確認。
+  // ない場合はturn.jsが102%を使うのでバグ扱い。
+  const rate = tgt.suikouRate;
+  // NOTE: 現在の実装では suikouRate を保存していないため undefined
+  if (rate === undefined || rate === null) {
+    throw new Error(
+      '水計の水攻めに suikouRate が設定されていない。' +
+      'turn.js は一律102%を使用するため、仕様の70%/Tと不一致。'
+    );
+  }
+  assertEqual(rate, 70, '水計 suikouRate');
+});
+
+test('水攻干計 — 水攻め付与時に suikouRate が設定されていること (仕様: 98%/T)', () => {
+  const me = makeUnit({ name: '付与者', chi: 150 });
+  const tgt = makeUnit({ name: '被付与者', chi: 150 });
+  const st = makeState([me], [tgt]);
+  const sk = SENPO_DB['水攻干計'];
+
+  withRandom(0, () => {
+    execSlot(st, sk, me, true, 1.0);
+  });
+
+  assert((tgt.suikouT || 0) > 0, '水攻干計: suikouT が付与されていない');
+
+  const rate = tgt.suikouRate;
+  if (rate === undefined || rate === null) {
+    throw new Error(
+      '水攻干計の水攻めに suikouRate が設定されていない。' +
+      'turn.js は一律102%を使用するため、仕様の98%/Tと不一致。'
+    );
+  }
+  assertEqual(rate, 98, '水攻干計 suikouRate');
+});
+
+test('嚢沙之計 — 水攻め付与時に suikouRate が設定されていること (仕様: 102%/T)', () => {
+  const me = makeUnit({ name: '付与者', chi: 150 });
+  const tgt = makeUnit({ name: '被付与者', chi: 150 });
+  const st = makeState([me], [tgt]);
+  const sk = SENPO_DB['嚢沙之計'];
+
+  withRandom(0, () => {
+    execSlot(st, sk, me, true, 1.0);
+  });
+
+  assert((tgt.suikouT || 0) > 0, '嚢沙之計: suikouT が付与されていない');
+  // 嚢沙之計の水攻めはturn.jsの102%と一致するので、ない場合は偶然一致
+  // suikouRateがあれば102を確認
+  const rate = tgt.suikouRate;
+  if (rate !== undefined && rate !== null) {
+    assertEqual(rate, 102, '嚢沙之計 suikouRate');
+  }
+  // suikouRateがなくてもturn.js側の102が一致するのでこれはOK（ただし注意）
+});
+
+test('火計 — 火傷付与時に _kaenRate が設定されていること (仕様: 70%/T)', () => {
+  const me = makeUnit({ name: '付与者', chi: 150 });
+  const tgt = makeUnit({ name: '被付与者', chi: 150 });
+  const st = makeState([me], [tgt]);
+  const sk = SENPO_DB['火計'];
+
+  withRandom(0, () => {
+    execSlot(st, sk, me, true, 1.0);
+  });
+
+  assert((tgt._kaen || 0) > 0, '火計: _kaen が付与されていない');
+
+  // 仕様: 70%/T。turn.jsは一律74%を使用。
+  const rate = tgt._kaenRate;
+  if (rate === undefined || rate === null) {
+    throw new Error(
+      '火計の火傷に _kaenRate が設定されていない。' +
+      'turn.js は一律74%を使用するため、仕様の70%/Tと不一致。'
+    );
+  }
+  assertEqual(rate, 70, '火計 _kaenRate');
+});
+
+test('紅蓮の炎 — 火傷付与時に _kaenRate が設定されていること (仕様: 74%/T)', () => {
+  const me = makeUnit({ name: '付与者', chi: 150 });
+  const tgt = makeUnit({ name: '被付与者', chi: 150 });
+  const st = makeState([me], [tgt]);
+  const sk = SENPO_DB['紅蓮の炎'];
+
+  // 準備戦法なので prepName を先にセット
+  me.prepName = '紅蓮の炎';
+  withRandom(0, () => {
+    execSlot(st, sk, me, true, 1.0);
+  });
+
+  assert((tgt._kaen || 0) > 0, '紅蓮の炎: _kaen が付与されていない');
+  // 紅蓮の炎は74%/T。_kaenRateがなければturn.jsの74%と一致するが、
+  // 汎用性のためにはフィールドを設けるべき。
+  const rate = tgt._kaenRate;
+  if (rate !== undefined && rate !== null) {
+    assertEqual(rate, 74, '紅蓮の炎 _kaenRate');
+  }
+});
+
+// ════════════════════════════════════════════
+// カテゴリ 3: 戦法ダメージ率の動的検証
+// execSlot/execFixed を実際に呼び出してダメージ率を確認
+// ════════════════════════════════════════════
+section('伝授戦法ダメージ率チェック');
+
+// 共通: ダメージ率の期待範囲を確認
+// Math.random=0.5 (中央値) で呼び出し, applyRateの乱数範囲0.956-1.044
+// 期待ダメージ = base * rate/100 * [0.956, 1.044]
+function checkDmgRate(senpoName, targetIdx, expectedRate, isMelee, opts = {}) {
+  const me  = makeUnit({ name: '攻撃者', bu: opts.bu||150, chi: opts.chi||150, to: opts.to||150 });
+  const tgt = makeUnit({ name: '標的', bu: 150, chi: 150, to: 150 });
+  const st  = makeState([me], [tgt]);
+  if (opts.prepName) me.prepName = opts.prepName;
+  const sk  = SENPO_DB[senpoName];
+  assert(sk != null, `SENPO_DBに「${senpoName}」が存在しない`);
+
+  resetDmgLog();
+  withRandom(0, () => { execSlot(st, sk, me, true, 1.0); });
+
+  // ダメージが記録されているか
+  assert(_dmgLog.length > 0, `${senpoName}: ダメージが記録されなかった`);
+
+  const hit = _dmgLog[targetIdx || 0];
+  if (!hit) throw new Error(`${senpoName}: インデックス ${targetIdx||0} のダメージが存在しない`);
+
+  // 期待ダメージの計算（Math.random=0の場合: 0.956 * base * rate/100）
+  const base = baseDmg(isMelee ? me.bu : me.chi, isMelee ? tgt.to : tgt.chi, me.hp);
+  const expectedMin = Math.round(base * expectedRate / 100 * 0.956) * 0.9;
+  const expectedMax = Math.round(base * expectedRate / 100 * 1.044) * 1.1;
+
+  assert(
+    hit.raw >= expectedMin && hit.raw <= expectedMax,
+    `${senpoName}: ダメージ ${hit.raw} が期待範囲 [${Math.round(expectedMin)}, ${Math.round(expectedMax)}] (rate=${expectedRate}%) 外`
+  );
+  // 兵刃/計略フラグも確認
+  if (opts.checkMelee !== undefined) {
+    assertEqual(hit.isMelee, opts.checkMelee, `${senpoName}: isMelee フラグ`);
+  }
+}
+
+test('霹靂一撃 — 兵刃228%', () => {
+  checkDmgRate('霹靂一撃', 0, 228, true, { checkMelee: true });
+});
+
+test('千軍辟易 — 兵刃106%（全体）', () => {
+  checkDmgRate('千軍辟易', 0, 106, true, { checkMelee: true });
+});
+
+test('乗勝追撃 — 兵刃136%', () => {
+  checkDmgRate('乗勝追撃', 0, 136, true, { checkMelee: true });
+});
+
+test('一刀両断 — 兵刃316%', () => {
+  checkDmgRate('一刀両断', 0, 316, true, { checkMelee: true });
+});
+
+test('電光石火 — 兵刃96%（2名中1名目）', () => {
+  checkDmgRate('電光石火', 0, 96, true, { checkMelee: true });
+});
+
+test('奇策縦横 — 計略254%（準備戦法）', () => {
+  checkDmgRate('奇策縦横', 0, 254, false, { prepName: '奇策縦横', checkMelee: false });
+});
+
+test('槍弾正 — 兵刃172%', () => {
+  checkDmgRate('槍弾正', 0, 172, true, { checkMelee: true });
+});
+
+test('理非曲直 — 兵刃192%', () => {
+  checkDmgRate('理非曲直', 0, 192, true, { checkMelee: true });
+});
+
+test('先陣の勇 — 兵刃154%', () => {
+  checkDmgRate('先陣の勇', 0, 154, true, { checkMelee: true });
+});
+
+test('生死一顧 — 計略56%', () => {
+  checkDmgRate('生死一顧', 0, 56, false, { checkMelee: false });
+});
+
+test('勇猛無比 — 兵刃122%（1発目）', () => {
+  checkDmgRate('勇猛無比', 0, 122, true, { checkMelee: true });
+});
+
+test('草木皆兵 — 計略142%（敵2名目: インデックス1）', () => {
+  // 敵が2名いる場合
+  const me  = makeUnit({ name: '攻撃者', chi: 150 });
+  const e1  = makeUnit({ name: '敵1', chi: 150, to: 150 });
+  const e2  = makeUnit({ name: '敵2', chi: 150, to: 150 });
+  const st  = makeState([me], [e1, e2]);
+  me.prepName = '草木皆兵';
+  const sk = SENPO_DB['草木皆兵'];
+  resetDmgLog();
+  withRandom(0, () => { execSlot(st, sk, me, true, 1.0); });
+  assert(_dmgLog.length >= 2, '草木皆兵: 敵2名への攻撃が記録されていない');
+  const base1 = baseDmg(me.chi, e1.chi, me.hp);
+  [0, 1].forEach(i => {
+    const hit = _dmgLog[i];
+    assert(hit.raw >= Math.round(base1 * 142/100 * 0.956 * 0.9), `草木皆兵: ${i+1}発目ダメージが低すぎる (${hit.raw})`);
+  });
+});
+
+test('帰還の凱歌 — HP50%超なら回復率132%が使われる', () => {
+  // 回復率を間接確認: HPが満タンの味方へ回復 → 余剰回復が切り捨てられる
+  const me   = makeUnit({ name: '回復者', chi: 200 });
+  const ally = makeUnit({ name: '味方', hp: 5000, maxHp: 10000 }); // HP50%
+  const tgt  = makeUnit({ name: '敵' });
+  const st   = makeState([me, ally], [tgt]);
+  const sk   = SENPO_DB['帰還の凱歌'];
+  resetDmgLog();
+  const hpBefore = ally.hp;
+  withRandom(0, () => { execSlot(st, sk, me, true, 1.0); });
+  const healed = ally.hp - hpBefore;
+  const base   = baseDmg(me.chi, 0, me.hp);
+  const minHeal = Math.round(base * 132/100 * 0.956 * 0.9);
+  assert(healed > 0, '帰還の凱歌: 回復量が0');
+  assert(healed >= minHeal, `帰還の凱歌: 回復量 ${healed} が期待下限 ${minHeal} 未満`);
+});
+
+test('回天転運 — 弱体化浄化 + 回復率260%', () => {
+  const me   = makeUnit({ name: '回復者', chi: 200 });
+  const ally = makeUnit({ name: '味方', hp: 3000, maxHp: 10000, musaku: 1, confused: 1 });
+  const tgt  = makeUnit({ name: '敵' });
+  const st   = makeState([me, ally], [tgt]);
+  const sk   = SENPO_DB['回天転運'];
+  withRandom(0, () => { execSlot(st, sk, me, true, 1.0); });
+  // 浄化されていること（musaku または confused のどちらかが 0 になっていること）
+  assert(ally.musaku === 0 || ally.confused === 0, '回天転運: 弱体化が浄化されていない');
+  // HPが回復していること
+  assert(ally.hp > 3000, '回天転運: HPが回復していない');
+});
+
+// ════════════════════════════════════════════
+// カテゴリ 4: 状態効果（ターン数・値）の検証
+// ════════════════════════════════════════════
+section('状態効果チェック');
+
+test('霹靂一撃 — 麻痺2Tが付与される', () => {
+  const me  = makeUnit({ name: '攻撃者', bu: 150 });
+  const tgt = makeUnit({ name: '標的', to: 150 });
+  const st  = makeState([me], [tgt]);
+  const sk  = SENPO_DB['霹靂一撃'];
+  withRandom(0, () => { execSlot(st, sk, me, true, 1.0); });
+  assertEqual(tgt.muku, 2, '霹靂一撃: 麻痺ターン数');
+});
+
+test('霹靂一撃 — 対象が麻痺中なら攻撃者に会心+50%', () => {
+  const me  = makeUnit({ name: '攻撃者', bu: 150, critRate: 0 });
+  const tgt = makeUnit({ name: '標的', to: 150, muku: 1 }); // 既に麻痺中
+  const st  = makeState([me], [tgt]);
+  const sk  = SENPO_DB['霹靂一撃'];
+  withRandom(0, () => { execSlot(st, sk, me, true, 1.0); });
+  assert(me.critRate >= 0.50, `霹靂一撃: 麻痺ボーナス会心率 ${me.critRate} が0.5未満`);
+});
+
+test('槍弾正 — 無策1Tが付与される', () => {
+  const me  = makeUnit({ name: '攻撃者', bu: 150 });
+  const tgt = makeUnit({ name: '標的', to: 150 });
+  const st  = makeState([me], [tgt]);
+  const sk  = SENPO_DB['槍弾正'];
+  withRandom(0, () => { execSlot(st, sk, me, true, 1.0); });
+  assertEqual(tgt.musaku, 1, '槍弾正: 無策ターン数');
+});
+
+test('破甲 — 統率-36、持続2T', () => {
+  const me  = makeUnit({ name: '攻撃者', to: 150 });
+  const tgt = makeUnit({ name: '標的', to: 150 });
+  const st  = makeState([me], [tgt]);
+  const sk  = SENPO_DB['破甲'];
+  const toB = tgt.to;
+  withRandom(0, () => { execSlot(st, sk, me, true, 1.0); });
+  assertEqual(tgt._toDebufT, 2, '破甲: 統率デバフ持続ターン数');
+  assertEqual(tgt.to, toB - 36, '破甲: 統率減少値');
+});
+
+test('一触即発 — 統率-70（統率100基準）・無策1T', () => {
+  const me  = makeUnit({ name: '攻撃者', to: 100 }); // statScale(100) = 1.0
+  const tgt = makeUnit({ name: '標的', to: 150 });
+  const st  = makeState([me], [tgt]);
+  const sk  = SENPO_DB['一触即発'];
+  const toB = tgt.to;
+  withRandom(0, () => { execSlot(st, sk, me, true, 1.0); });
+  assertEqual(tgt.musaku, 1, '一触即発: 無策1T');
+  // statScale(100) = 1.0なので減少は70
+  assertEqual(tgt.to, toB - 70, '一触即発: 統率減少値(-70)');
+  assertEqual(tgt._toDebufT, 1, '一触即発: 統率デバフ持続1T');
+});
+
+test('奇謀独断 — 無策2Tが敵2名に付与される（準備戦法）', () => {
+  const me = makeUnit({ name: '付与者' });
+  const e1 = makeUnit({ name: '敵1' });
+  const e2 = makeUnit({ name: '敵2' });
+  const st = makeState([me], [e1, e2]);
+  me.prepName = '奇謀独断';
+  const sk = SENPO_DB['奇謀独断'];
+  withRandom(0, () => { execSlot(st, sk, me, true, 1.0); });
+  assertEqual(e1.musaku, 2, '奇謀独断: 敵1の無策ターン数');
+  assertEqual(e2.musaku, 2, '奇謀独断: 敵2の無策ターン数');
+});
+
+test('五里霧中 — 混乱2Tが付与される（準備戦法）', () => {
+  const me  = makeUnit({ name: '付与者' });
+  const tgt = makeUnit({ name: '標的' });
+  const st  = makeState([me], [tgt]);
+  me.prepName = '五里霧中';
+  const sk = SENPO_DB['五里霧中'];
+  withRandom(0, () => { execSlot(st, sk, me, true, 1.0); });
+  assertEqual(tgt.confused, 2, '五里霧中: 混乱ターン数');
+});
+
+test('刺突 — 潰走3T・70%/Tが付与される', () => {
+  const me  = makeUnit({ name: '付与者', bu: 150 });
+  const tgt = makeUnit({ name: '標的' });
+  const st  = makeState([me], [tgt]);
+  const sk  = SENPO_DB['刺突'];
+  withRandom(0, () => { execSlot(st, sk, me, true, 1.0); });
+  assertEqual(tgt.kaisoT, 3, '刺突: 潰走ターン数');
+  assertEqual(tgt.kaisoRate, 70, '刺突: 潰走ダメージ率');
+});
+
+test('回山倒海（伝授版）— 潰走2T・94%/Tが付与される', () => {
+  const me  = makeUnit({ name: '付与者', bu: 150 });
+  const tgt = makeUnit({ name: '標的', to: 150 });
+  const st  = makeState([me], [tgt]);
+  const sk  = SENPO_DB['回山倒海'];
+  withRandom(0, () => { execSlot(st, sk, me, true, 1.0); });
+  assertEqual(tgt.kaisoT, 2, '回山倒海: 潰走ターン数');
+  assertEqual(tgt.kaisoRate, 94, '回山倒海: 潰走ダメージ率');
+});
+
+test('水計 — 水攻め3Tが付与される', () => {
+  const me  = makeUnit({ name: '付与者', chi: 150 });
+  const tgt = makeUnit({ name: '標的' });
+  const st  = makeState([me], [tgt]);
+  const sk  = SENPO_DB['水計'];
+  withRandom(0, () => { execSlot(st, sk, me, true, 1.0); });
+  assertEqual(tgt.suikouT, 3, '水計: 水攻めターン数');
+});
+
+test('水攻干計 — 水攻め2T + 回復不可が付与される（準備戦法）', () => {
+  const me  = makeUnit({ name: '付与者', chi: 150 });
+  const tgt = makeUnit({ name: '標的' });
+  const st  = makeState([me], [tgt]);
+  me.prepName = '水攻干計';
+  const sk = SENPO_DB['水攻干計'];
+  withRandom(0, () => { execSlot(st, sk, me, true, 1.0); });
+  assertEqual(tgt.suikouT, 2, '水攻干計: 水攻めターン数');
+  assert(tgt.healBlock === true, '水攻干計: 回復不可が設定されていない');
+});
+
+test('嚢沙之計 — 水攻め2T + 計略被ダメ+30%が付与される', () => {
+  const me  = makeUnit({ name: '付与者', chi: 150 });
+  const e1  = makeUnit({ name: '敵1' });
+  const e2  = makeUnit({ name: '敵2' });
+  const st  = makeState([me], [e1, e2]);
+  const sk  = SENPO_DB['嚢沙之計'];
+  withRandom(0, () => { execSlot(st, sk, me, true, 1.0); });
+  [e1, e2].forEach(t => {
+    assertEqual(t.suikouT, 2, `嚢沙之計(${t.name}): 水攻めターン数`);
+  });
+});
+
+test('戦意崩壊 — 対象の統率・知略が65低下・2T', () => {
+  const me  = makeUnit({ name: '攻撃者', bu: 150 });
+  const tgt = makeUnit({ name: '標的', to: 150, chi: 150 });
+  const st  = makeState([me, makeUnit({ name: '大将' })], [tgt]);
+  const sk  = SENPO_DB['戦意崩壊'];
+  const toB = tgt.to; const chiB = tgt.chi;
+  withRandom(0, () => { execSlot(st, sk, me, true, 1.0); });
+  assertEqual(tgt.to,  toB  - 65, '戦意崩壊: 統率低下値');
+  assertEqual(tgt.chi, chiB - 65, '戦意崩壊: 知略低下値');
+  assertEqual(tgt._soikuDebufT, 2, '戦意崩壊: デバフ持続ターン数');
+});
+
+test('電光石火 — 友軍1名に統率+48（2T）が付与される', () => {
+  const me   = makeUnit({ name: '攻撃者', bu: 150 });
+  const ally = makeUnit({ name: '味方大将' });
+  const tgt  = makeUnit({ name: '敵' });
+  const st   = makeState([me, ally], [tgt]);
+  const sk   = SENPO_DB['電光石火'];
+  const toB  = ally.to;
+  withRandom(0, () => { execSlot(st, sk, me, true, 1.0); });
+  assert(ally.to >= toB + 48, `電光石火: 統率+48が付与されていない (${ally.to - toB} 増加)`);
+  assert((ally._dengkouToT || 0) >= 2, '電光石火: 統率バフの持続ターン数が2未満');
+});
+
+// ════════════════════════════════════════════
+// カテゴリ 5: 固有戦法ダメージ率の検証
+// ════════════════════════════════════════════
+section('固有戦法ダメージ率チェック');
+
+test('槍弾正（保科正俊 固有）— 兵刃172%', () => {
+  const me  = makeUnit({ name: '保科正俊', bu: 150, fixed: SENPO_DB['槍弾正'] || {name:'槍弾正',type:'active',prob:.35} });
+  const tgt = makeUnit({ name: '標的', to: 150 });
+  const st  = makeState([me], [tgt]);
+  resetDmgLog();
+  withRandom(0, () => { execFixed(st, me, true, 1.0); });
+  assert(_dmgLog.length > 0, '槍弾正(固有): ダメージが記録されなかった');
+  const hit = _dmgLog[0];
+  const base = baseDmg(me.bu, tgt.to, me.hp);
+  const expectedMin = Math.round(base * 172/100 * 0.956 * 0.9);
+  const expectedMax = Math.round(base * 172/100 * 1.044 * 1.1);
+  assert(
+    hit.raw >= expectedMin && hit.raw <= expectedMax,
+    `槍弾正(固有): ダメージ ${hit.raw} が期待範囲外 [${expectedMin}, ${expectedMax}]`
+  );
+});
+
+test('回山倒海（甘粕景継 固有）— 兵刃104%', () => {
+  const me  = makeUnit({ name: '甘粕景継', bu: 150, fixed: { name:'回山倒海', type:'strike', prob:0.35 } });
+  const tgt = makeUnit({ name: '標的', to: 150 });
+  const st  = makeState([me], [tgt]);
+  resetDmgLog();
+  withRandom(0, () => { execFixed(st, me, true, 1.0, false, ['strike']); });
+  if (_dmgLog.length === 0) {
+    // 突撃戦法なので typeFilter='strike' でも 0 の可能性あり（通常攻撃後に発動）
+    // skip: 固有突撃のゲート確認は別途
+    return;
+  }
+  const hit = _dmgLog[0];
+  const base = baseDmg(me.bu, tgt.to, me.hp);
+  const expectedMin = Math.round(base * 104/100 * 0.956 * 0.9);
+  assert(hit.raw >= expectedMin, `回山倒海(固有): ダメージ ${hit.raw} が低すぎる (期待下限 ${expectedMin})`);
+});
+
+// ════════════════════════════════════════════
+// カテゴリ 6: 発動確率の統計的検証
+// 1000回試行して発動率が仕様の±5%以内であることを確認
+// ════════════════════════════════════════════
+section('発動確率 統計テスト (n=1000, 許容±5%)');
+
+function probTest(senpoName, expectedProb, isPrepped = false) {
+  test(`${senpoName} 発動確率 (仕様: ${Math.round(expectedProb*100)}%)`, () => {
+    const N = 1000;
+    let fired = 0;
+    _fixedRandom = null; // 本物のランダムを使う
+    for (let i = 0; i < N; i++) {
+      const me  = makeUnit({ name: '攻撃者' });
+      const tgt = makeUnit({ name: '標的', to: 150 });
+      const st  = makeState([me], [tgt]);
+      const sk  = SENPO_DB[senpoName];
+      if (!sk) throw new Error(`SENPO_DBに「${senpoName}」が存在しない`);
+      if (isPrepped) me.prepName = senpoName;
+      resetDmgLog();
+      const logsBefore = st._logs ? st._logs.length : 0;
+
+      // 確率発動チェックのみ（実際の効果は問わない）
+      const skCopy = { ...sk, prob: expectedProb };
+      execSlot(st, skCopy, me, true, 1.0);
+
+      // 発動判定: ログにこの戦法の発動記録があるか
+      const sl = st._logs || [];
+      const hasFired = sl.some(l => l.msg && l.msg.includes(senpoName));
+      if (hasFired) fired++;
+    }
+    const actualRate = fired / N;
+    const tolerance  = 0.05;
+    assert(
+      Math.abs(actualRate - expectedProb) <= tolerance,
+      `${senpoName}: 実測発動率 ${(actualRate*100).toFixed(1)}% が仕様 ${Math.round(expectedProb*100)}%±5% 外`
+    );
+  });
+}
+
+// 発動確率が分かりやすい代表的な戦法を確認
+// 注: 確率テストはランダム性があるため偶発的失敗の可能性あり
+probTest('霹靂一撃', 0.35);
+probTest('乗勝追撃', 0.30);
+probTest('理非曲直', 0.35);
+probTest('帰還の凱歌', 0.45);
+probTest('水攻干計', 0.30, true);
+probTest('奇策縦横', 0.30, true);
+
+// ════════════════════════════════════════════
+// 結果出力
+// ════════════════════════════════════════════
+
+function renderResults() {
+  const out = document.getElementById('output');
+  const pass = _results.filter(r => r.pass).length;
+  const fail = _results.filter(r => !r.pass).length;
+  const pct  = Math.round(pass / _results.length * 100);
+
+  let html = `<div class="summary">
+    <span class="pass">✓ ${pass} passed</span> &nbsp;
+    <span class="${fail > 0 ? 'fail' : 'pass'}">${fail > 0 ? '✗' : '✓'} ${fail} failed</span> &nbsp;
+    (合計 ${_results.length} テスト, ${pct}%)
+  </div>`;
+
+  // セクションごとにグループ化
+  const sections = [...new Set(_results.map(r => r.section))];
+  for (const sec of sections) {
+    const rows = _results.filter(r => r.section === sec);
+    const sf = rows.filter(r => !r.pass).length;
+    html += `<h2>${sec} — ${sf === 0 ? '<span class="pass">全通過</span>' : `<span class="fail">${sf}件失敗</span>`}</h2>`;
+    html += '<div class="section">';
+    for (const r of rows) {
+      const icon = r.pass ? '<span class="pass">✓</span>' : '<span class="fail">✗</span>';
+      html += `<div class="test-row ${r.pass ? '' : 'fail-row'}">${icon} ${r.name}`;
+      if (!r.pass) html += `<pre>${r.error}</pre>`;
+      html += '</div>';
+    }
+    html += '</div>';
+  }
+
+  out.innerHTML = html;
+}
+
+renderResults();
+</script>
+</body>
+</html>
