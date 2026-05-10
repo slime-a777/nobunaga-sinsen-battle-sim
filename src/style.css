@@ -1,0 +1,238 @@
+@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@400;600;700&family=Zen+Antique&display=swap');
+:root{
+  --ink:#1a1208;--parchment:#f5ead8;--parchment2:#ede0c4;
+  --red:#8b1a1a;--red2:#c0392b;--blue:#1a3a5c;--blue2:#2980b9;
+  --gold:#c9a64a;--gold2:#f0c060;--green:#1a5c2a;--green2:#27ae60;
+  --purple:#5c1a5c;--shadow:rgba(26,18,8,0.25);
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:#0d0a06;font-family:'Noto Serif JP',serif;color:var(--ink);min-height:100vh;
+  overflow-x:hidden;
+  background-image:radial-gradient(ellipse at 20% 50%,rgba(139,26,26,.12) 0%,transparent 60%),
+  radial-gradient(ellipse at 80% 50%,rgba(26,58,92,.12) 0%,transparent 60%);}
+header{text-align:center;padding:20px 16px 8px;background:linear-gradient(180deg,#1a1208 0%,transparent 100%);}
+header h1{font-family:'Zen Antique',serif;font-size:clamp(16px,5vw,26px);color:var(--gold2);
+  letter-spacing:.15em;text-shadow:0 0 20px rgba(201,166,74,.5);}
+header p{font-size:12px;color:#888;margin-top:3px;}
+.divider{height:1px;background:linear-gradient(90deg,transparent,var(--gold),transparent);margin:6px auto;max-width:400px;}
+
+.arena{max-width:1100px;margin:0 auto;padding:10px;overflow-x:hidden;}
+
+/* ─ 編成パネル ─ */
+.formation-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;}
+.team-panel{background:var(--parchment);border-radius:8px;padding:10px;box-shadow:0 4px 20px var(--shadow);min-width:0;}
+.team-panel.ally{border-top:3px solid var(--blue);}
+.team-panel.enemy{border-top:3px solid var(--red);}
+.team-label{font-family:'Zen Antique',serif;font-size:15px;font-weight:700;letter-spacing:.2em;margin-bottom:8px;}
+.team-label.ally{color:var(--blue);}
+.team-label.enemy{color:var(--red);}
+
+.busho-row{background:rgba(255,255,255,.55);border-radius:6px;padding:8px;margin-bottom:6px;border:1px solid rgba(0,0,0,.08);}
+.ally .busho-row{background:rgba(26,58,92,.07);}
+.enemy .busho-row{background:rgba(139,26,26,.07);}
+.ally .busho-row.is-taisho{background:rgba(26,58,92,.13);}
+.enemy .busho-row.is-taisho{background:rgba(139,26,26,.13);}
+.busho-name-row{display:flex;align-items:center;flex-wrap:wrap;gap:4px;margin-bottom:6px;}
+.busho-name{font-weight:700;font-size:13px;}
+.role-badge{font-size:11px;padding:2px 6px;border-radius:10px;}
+.role-calc{background:#e8f4fd;color:var(--blue);}
+.role-sup{background:#fef9e7;color:#8b6914;}
+.taisho-badge{font-size:11px;font-weight:700;padding:2px 7px;border-radius:10px;
+  background:linear-gradient(135deg,#c9a64a,#f0c060);color:#1a1208;
+  letter-spacing:.05em;margin-right:4px;white-space:nowrap;}
+.busho-row.is-taisho{border:2px solid var(--gold);}
+.busho-combo{display:flex;flex-direction:column;flex:1;min-width:0;}
+.combo-search{width:100%;box-sizing:border-box;font-size:12px;font-family:inherit;border:1px solid #bbb;border-radius:3px 3px 0 0;
+  border-bottom:none;padding:3px 5px;background:#fafafa;color:var(--ink);}
+.combo-search:focus{outline:none;border-color:var(--gold);}
+.combo-search::placeholder{color:#bbb;font-weight:400;}
+.busho-combo .busho-sel{width:100%;border-radius:0 0 4px 4px;font-weight:700;}
+.slot-combo{display:flex;flex-direction:column;flex:1;min-width:0;width:0;}
+.slot-combo .combo-search{font-size:11px;border-color:#ccc;}
+.slot-combo select{width:100%;}
+
+.stat-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:3px;margin-bottom:4px;}
+.stat-item label{display:block;font-size:11px;color:#666;margin-bottom:2px;}
+.stat-item input{width:100%;border:1px solid #ccc;border-radius:3px;padding:3px;font-size:13px;
+  font-family:inherit;background:white;color:var(--ink);text-align:center;}
+.stat-item input:focus{outline:none;border-color:var(--gold);}
+.stat-val{font-size:13px;text-align:center;padding:4px 2px;background:rgba(0,0,0,.04);border-radius:3px;color:var(--ink);font-weight:600;}
+
+/* ─ 武将選択 ─ */
+.busho-sel{flex:1;min-width:0;font-size:13px;font-family:inherit;border:1px solid #bbb;border-radius:4px;
+  padding:5px 3px;background:white;color:var(--ink);font-weight:700;margin-bottom:0;cursor:pointer;
+  min-height:36px;touch-action:manipulation;}
+.busho-sel:focus{outline:none;border-color:var(--gold);}
+.approx-badge{font-size:11px;color:#999;margin-left:4px;}
+
+/* ─ 戦法選択 ─ */
+.senpo-section{margin-top:5px;}
+.senpo-label{font-size:11px;color:#555;margin-bottom:3px;display:flex;align-items:center;gap:4px;}
+.senpo-label span{background:var(--gold);color:white;padding:1px 5px;border-radius:3px;font-size:11px;}
+.senpo-fixed{font-size:12px;color:#444;padding:4px 6px;background:rgba(0,0,0,.06);border-radius:4px;
+  margin-bottom:4px;display:block;overflow-wrap:break-word;word-break:break-all;line-height:1.5;}
+.taisho-skill-note{font-size:10px;font-weight:700;color:#8b6914;background:#fef3c7;
+  border:1px solid #f0c060;border-radius:3px;padding:1px 5px;white-space:nowrap;}
+.senpo-fixed .tag{font-size:10px;padding:1px 4px;border-radius:3px;background:#ddd;color:#555;}
+.senpo-select-row{display:flex;align-items:center;gap:4px;margin-bottom:4px;}
+.senpo-select-row label{font-size:11px;color:#555;white-space:nowrap;min-width:32px;}
+.senpo-select-row select{flex:1;min-width:0;width:0;font-size:12px;font-family:inherit;border:1px solid #ccc;border-radius:0 0 3px 3px;
+  padding:4px;background:white;color:var(--ink);min-height:32px;touch-action:manipulation;}
+.senpo-select-row .combo-search{font-size:11px;border-color:#ccc;}
+.senpo-select-row .combo-search::placeholder{font-size:11px;}
+.senpo-select-row .slot-combo select{width:100%;flex:none;}
+
+/* ─ 凸数セレクター ─ */
+.convex-sel{font-size:12px;font-family:inherit;border:1px solid #bbb;border-radius:3px;
+  padding:3px 4px;background:#fffbe8;color:#6b4c00;font-weight:700;cursor:pointer;width:54px;
+  min-height:30px;touch-action:manipulation;}
+.convex-sel:focus{outline:none;border-color:var(--gold);}
+.trait-display{font-size:11px;color:#555;padding:4px 5px;background:rgba(201,166,74,.08);
+  border-radius:3px;margin-top:3px;line-height:1.7;border-left:2px solid var(--gold);}
+/* ─ 属性ポイント ─ */
+.attrpt-row{display:flex;align-items:center;gap:4px;font-size:11px;color:#555;
+  background:rgba(0,0,0,.04);border-radius:3px;padding:4px 6px;margin-bottom:4px;flex-wrap:wrap;}
+.attrpt-row label{font-size:11px;color:#666;white-space:nowrap;}
+.attrpt-input{width:38px;font-size:12px;font-family:inherit;padding:2px 3px;text-align:center;
+  border:1px solid #ccc;border-radius:3px;background:white;color:var(--ink);
+  min-height:28px;touch-action:manipulation;}
+.attrpt-input:focus{outline:none;border-color:var(--gold);}
+.attrpt-left{font-weight:700;white-space:nowrap;margin-right:3px;font-size:12px;}
+.attrpt-title{color:#888;font-size:11px;margin-right:2px;}
+
+/* ─ HP バー ─ */
+.hp-bar-wrap{margin-top:5px;}
+.hp-bar-bg{position:relative;height:6px;background:#888;border-radius:3px;overflow:hidden;}
+.hp-bar-fill{position:absolute;left:0;height:100%;transition:width .4s ease;}
+.hp-bar-injured{position:absolute;height:100%;background:#e67e22;opacity:0.85;transition:left .4s ease,width .4s ease;}
+.ally .hp-bar-fill{background:linear-gradient(90deg,var(--blue2),#5dade2);}
+.enemy .hp-bar-fill{background:linear-gradient(90deg,var(--red2),#e74c3c);}
+.hp-text{font-size:11px;color:#444;margin-top:2px;text-align:right;}
+
+/* ─ 設定行 ─ */
+.config-row{background:var(--parchment2);border-radius:6px;padding:8px 12px;margin-bottom:8px;
+  display:flex;gap:10px;align-items:center;flex-wrap:wrap;box-shadow:0 2px 8px var(--shadow);}
+.config-item{display:flex;align-items:center;gap:5px;font-size:13px;color:#444;}
+.config-item select,.config-item input[type=number]{font-size:13px;font-family:inherit;border:1px solid #bbb;
+  border-radius:3px;padding:4px 6px;background:white;min-height:32px;touch-action:manipulation;}
+
+/* ─ ボタン ─ */
+.btn-row{display:flex;gap:8px;margin-bottom:10px;justify-content:center;flex-wrap:wrap;}
+.btn{font-family:'Zen Antique',serif;font-size:15px;letter-spacing:.12em;padding:11px 20px;border:none;border-radius:6px;cursor:pointer;transition:all .2s;touch-action:manipulation;min-height:44px;}
+.btn-sim{background:linear-gradient(135deg,#8b1a1a,#c0392b);color:#ffd;box-shadow:0 3px 12px rgba(139,26,26,.4);}
+.btn-sim:hover{transform:translateY(-1px);}
+.btn-next{background:linear-gradient(135deg,#1a3a5c,#2980b9);color:#ffd;}
+.btn-next:hover{transform:translateY(-1px);}
+.btn-reset{background:var(--parchment2);color:#555;border:1px solid #bbb;}
+.btn-pick{background:linear-gradient(135deg,#1a5c2a,#27ae60);color:#ffd;font-size:13px;padding:9px 14px;}
+
+/* ─ メインレイアウト（ログ部分）：常に縦並び ─ */
+.bottom-grid{display:flex;flex-direction:column;gap:10px;}
+
+/* ─ ピックアップログ ─ */
+.pickup-section{background:var(--parchment);border-radius:8px;padding:10px;box-shadow:0 4px 20px var(--shadow);}
+.section-title{font-family:'Zen Antique',serif;font-size:14px;color:var(--ink);letter-spacing:.15em;
+  margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid rgba(0,0,0,.12);}
+.pickup-meta{font-size:12px;color:#666;margin-bottom:8px;line-height:1.6;}
+.pickup-log{font-size:12px;line-height:1.8;max-height:500px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:#bba07a transparent;}
+.pl-turn{color:var(--red);font-weight:700;font-size:13px;margin-top:6px;}
+.pl-ally{color:var(--blue);}
+.pl-enemy{color:var(--red2);}
+.pl-heal{color:var(--green2);}
+.pl-buff{color:#b8860b;}
+.pl-ctrl{color:var(--purple);}
+.pl-result{font-weight:700;font-size:13px;color:var(--gold);}
+.pl-sub{color:#888;font-size:10px;}
+.no-battle{color:#888;font-style:italic;font-size:12px;padding:20px;text-align:center;}
+
+/* ─ バトルログ ─ */
+.battle-section{background:#111007;border-radius:8px;padding:10px;min-height:120px;
+  box-shadow:inset 0 2px 12px rgba(0,0,0,.5);border:1px solid #2a2010;}
+.battle-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;
+  padding-bottom:6px;border-bottom:1px solid #2a2010;}
+.battle-title{font-family:'Zen Antique',serif;font-size:14px;color:var(--gold);letter-spacing:.2em;}
+.turn-badge{font-size:12px;color:var(--gold2);background:rgba(201,166,74,.15);padding:3px 9px;
+  border-radius:10px;border:1px solid rgba(201,166,74,.3);}
+.log-area{max-height:400px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:#3a2a10 transparent;}
+.log-entry{font-size:12px;line-height:1.75;padding:2px 0;border-bottom:1px solid rgba(255,255,255,.04);animation:fadeIn .25s ease;}
+@keyframes fadeIn{from{opacity:0;transform:translateX(-3px)}to{opacity:1;transform:none}}
+.log-turn{color:var(--gold);font-weight:700;font-size:13px;margin-top:6px;}
+.log-ally{color:#7eb8e8;}
+.log-enemy{color:#e88a7e;}
+.log-heal{color:#7ec87e;}
+.log-buff{color:#e8d47e;}
+.log-ctrl{color:#c87ee8;}
+.log-result{color:var(--gold2);font-weight:700;font-size:14px;margin-top:6px;letter-spacing:.1em;}
+.log-info{color:#888;}
+.log-warn{color:#e8c47e;}
+
+/* ─ 結果サマリー ─ */
+.result-summary{background:var(--parchment);border-radius:8px;padding:10px;margin-top:8px;display:none;
+  box-shadow:0 4px 20px var(--shadow);}
+.result-title{font-family:'Zen Antique',serif;font-size:15px;text-align:center;color:var(--ink);
+  margin-bottom:8px;letter-spacing:.2em;}
+.verdict-bar{height:8px;border-radius:4px;background:linear-gradient(90deg,var(--blue2) var(--ally-pct),var(--red2) var(--ally-pct));
+  margin:8px 0 4px;transition:all .6s ease;}
+.verdict-labels{display:flex;justify-content:space-between;font-size:12px;}
+.verdict-labels .al{color:var(--blue2);}
+.verdict-labels .en{color:var(--red2);}
+.result-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:8px;}
+.result-card{background:rgba(255,255,255,.6);border-radius:5px;padding:6px;text-align:center;}
+.result-card .val{font-size:21px;font-weight:700;}
+.result-card .lbl{font-size:11px;color:#666;margin-top:2px;}
+.ally-val{color:var(--blue);}
+.enemy-val{color:var(--red);}
+
+.note{font-size:11px;color:#666;text-align:center;margin-top:8px;line-height:1.6;}
+/* ─ プリセット ─ */
+.preset-section{background:var(--parchment2);border-radius:6px;padding:8px 12px;margin-bottom:8px;
+  box-shadow:0 2px 8px var(--shadow);}
+.preset-head{display:flex;align-items:center;gap:8px;margin-bottom:6px;}
+.preset-head-title{font-family:'Zen Antique',serif;font-size:13px;color:var(--ink);letter-spacing:.15em;flex:1;}
+.preset-save-row{display:flex;gap:5px;margin-bottom:6px;}
+.preset-save-row input{flex:1;font-size:12px;font-family:inherit;border:1px solid #bbb;border-radius:3px;
+  padding:3px 6px;background:white;color:var(--ink);}
+.preset-save-row input:focus{outline:none;border-color:var(--gold);}
+.btn-psave{font-family:inherit;font-size:12px;padding:3px 10px;border:none;border-radius:3px;
+  background:var(--gold);color:#fff;cursor:pointer;white-space:nowrap;}
+.btn-psave:hover{background:var(--gold2);color:var(--ink);}
+.preset-list{display:flex;flex-wrap:wrap;gap:4px;min-height:20px;}
+.preset-chip{display:inline-flex;align-items:center;gap:2px;background:white;
+  border:1px solid #ccc;border-radius:4px;padding:3px 5px 3px 8px;font-size:12px;}
+.pchip-name{cursor:pointer;color:var(--blue2);font-weight:600;}
+.pchip-name:hover{text-decoration:underline;}
+.pchip-side{background:none;border:1px solid #ccc;border-radius:3px;cursor:pointer;
+  color:#555;font-size:11px;padding:2px 5px;margin-left:2px;line-height:1.4;touch-action:manipulation;}
+.pchip-side:hover{background:var(--gold);color:#fff;border-color:var(--gold);}
+.pchip-del{background:none;border:none;cursor:pointer;color:#bbb;font-size:13px;
+  line-height:1;padding:0 2px;margin-left:2px;touch-action:manipulation;}
+.pchip-del:hover{color:var(--red2);}
+.preset-empty{font-size:12px;color:#aaa;padding:2px 0;}
+
+/* ─ タブレット・スマホ（〜768px）：編成を縦並び＋ステータスを3列に ─ */
+@media(max-width:768px){
+  .arena{padding:8px;}
+  .formation-grid{grid-template-columns:1fr;gap:8px;}
+  .stat-grid{grid-template-columns:repeat(3,1fr);}
+  .team-panel{overflow-x:hidden;}
+}
+/* ─ スマホ（〜600px） ─ */
+@media(max-width:600px){
+  .result-grid{grid-template-columns:repeat(2,1fr);}
+  .arena{padding:6px;}
+  .team-panel{padding:8px;overflow-x:hidden;}
+  .busho-row{padding:7px;}
+  .busho-name-row{align-items:flex-start;}
+  .busho-sel{font-size:14px;}
+  .senpo-fixed{font-size:13px;}
+  .senpo-select-row select{font-size:13px;min-height:36px;}
+  .log-entry{font-size:13px;}
+  .log-area{max-height:250px;}
+  .pickup-log{max-height:400px;font-size:13px;}
+  .btn{font-size:14px;padding:12px 16px;}
+  .attrpt-row{gap:3px;}
+  .attrpt-input{width:44px;font-size:13px;min-height:32px;}
+  .attrpt-left{font-size:13px;}
+  .convex-sel{width:60px;font-size:13px;min-height:34px;}
+  .stat-val{font-size:14px;}
+}
