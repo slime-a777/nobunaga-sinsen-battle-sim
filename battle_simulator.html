@@ -49,6 +49,14 @@
     <label style="font-size:12px;white-space:nowrap;"><input type="checkbox" id="enemyFactionMatch"> 勢力一致(+7%)</label>
     <label style="font-size:12px;white-space:nowrap;"><input type="checkbox" id="enemyKamonMatch"> 家紋一致(+3%)</label>
   </div>
+  <div class="config-item" style="flex-wrap:wrap;gap:4px;">
+    <label style="white-space:nowrap;">兵種Lv</label>
+    <span style="font-size:11px;color:#555;white-space:nowrap;">自軍:</span>
+    <input type="number" id="allyTroopLv" value="0" min="0" max="10" style="width:40px">
+    <span style="font-size:11px;color:#555;white-space:nowrap;margin-left:4px;">敵軍:</span>
+    <input type="number" id="enemyTroopLv" value="0" min="0" max="10" style="width:40px">
+    <span style="font-size:10px;color:#888;white-space:nowrap;">（Lv0基準 +2%/Lv）</span>
+  </div>
   <div class="config-item"><label>シミュ回数</label>
     <select id="simCount">
       <option value="1">1回（逐次表示）</option>

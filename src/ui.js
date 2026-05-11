@@ -240,6 +240,11 @@ function onBushoChange(sel) {
 // ═══════════════════════════════════════
 function readBuild() {
   const build = { ally: [], enemy: [] };
+  // 兵種レベル（Lv1基準、1レベルごとに属性値+2%）
+  const troopLvMult = {
+    ally:  1 + (Math.max(0, parseInt(document.getElementById('allyTroopLv')?.value)  || 0)) * 0.02,
+    enemy: 1 + (Math.max(0, parseInt(document.getElementById('enemyTroopLv')?.value) || 0)) * 0.02,
+  };
   // 勢力・家紋ボーナス（チーム全体の属性に適用）
   const factionBonus = {};
   ['ally','enemy'].forEach(side => {
@@ -322,12 +327,13 @@ function readBuild() {
     unitData.forEach(u => {
       const { def, s1, s2, name } = u;
       const fb = factionBonus[side];
+      const tlm = troopLvMult[side];
       build[side].push({
         name,
-        chi: Math.round((def.chi + u.ptChi + u.eqChi) * u.chiMult * fb),
-        bu:  Math.round((def.bu  + u.ptBu  + u.eqBu)  * u.buMult  * fb),
-        to:  Math.round((def.to  + u.ptTo  + u.eqTo)  * u.toMult  * (1 + sumTo) * fb),
-        spd: (def.spd || 0) + u.ptSpd + u.eqSpd,
+        chi: Math.round((def.chi + u.ptChi + u.eqChi) * u.chiMult * fb * tlm),
+        bu:  Math.round((def.bu  + u.ptBu  + u.eqBu)  * u.buMult  * fb * tlm),
+        to:  Math.round((def.to  + u.ptTo  + u.eqTo)  * u.toMult  * (1 + sumTo) * fb * tlm),
+        spd: Math.round(((def.spd || 0) + u.ptSpd + u.eqSpd) * tlm),
         hp: 10000, maxHp: 10000,
         role: def.role, fixed: def.fixed,
         slots: [s1, s2].map(s => SENPO_DB[s]).filter(Boolean),
