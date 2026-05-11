@@ -498,7 +498,7 @@ function execFixed(st, me, isSelf, advMult, isTaisho=false, typeFilter=null) {
       addLog(st, logS, `  [${isSelf?'自':'敵'}] 攻めの三左(${me.name}→${t.name}) 兵刃[${actualDmg.toLocaleString()}]${cr.label}（残${t.hp.toLocaleString()}）${st._lastMods||''}`);
       st._lastMods = '';
       if ((t.kaisoT||0) > 0) {
-        const _h = applyRate(baseDmg(me.bu, 0, me.hp), 70, me.bu, true);
+        const _h = applyHealRate(me.hp, me.bu, 70);
         const {healed:_ah} = applyHeal(me, _h, st, isSelf?'ally':'enemy');
         if (_ah > 0) addLog(st, 'log-heal', `  攻めの三左(潰走対象): ${me.name} 回復+${_ah.toLocaleString()}`);
       } else {
@@ -513,7 +513,7 @@ function execFixed(st, me, isSelf, advMult, isTaisho=false, typeFilter=null) {
     if (Math.random() > 0.40) return;
     const _healSide = isSelf ? 'ally' : 'enemy';
     allies.filter(a=>a.hp>0).slice(0,2).forEach(a=>{
-      const h = applyRate(baseDmg(me.chi, 0, me.hp), 152, me.chi, true);
+      const h = applyHealRate(me.hp, me.chi, 152);
       const {healed:_ah, remainHp:_rh} = applyHeal(a, h, st, _healSide);
       if (_ah > 0) addLog(st, 'log-heal', `  一舟軒(${a.name}) +${_ah.toLocaleString()}（残${_rh.toLocaleString()}）`);
       if (Math.random() < 0.52) {
@@ -579,7 +579,7 @@ function execFixed(st, me, isSelf, advMult, isTaisho=false, typeFilter=null) {
       const musaku_prob = Math.min(1.0, 0.40 + (me._ekizenStack||0) * 0.10);
       if ((t.musaku||0) > 0) {
         // 既に無策: 自己回復116%
-        const h = applyRate(baseDmg(me.bu, 0, me.hp), 116, me.bu, true);
+        const h = applyHealRate(me.hp, me.bu, 116);
         const {healed:_ah, remainHp:_rh} = applyHeal(me, h, st, isSelf?'ally':'enemy');
         if (_ah > 0) addLog(st, 'log-heal', `  越後二天(自己回復): ${me.name} +${_ah.toLocaleString()}（残${_rh.toLocaleString()}）`);
       } else if (Math.random() < musaku_prob) {
@@ -701,7 +701,7 @@ function execFixed(st, me, isSelf, advMult, isTaisho=false, typeFilter=null) {
       });
     } else {
       // 自己回復258%（統率依存）
-      const h = applyRate(baseDmg(me.to, 0, me.hp), 258, me.to, true);
+      const h = applyHealRate(me.hp, me.to, 258);
       const {healed:_ah, remainHp:_rh} = applyHeal(me, h, st, isSelf?'ally':'enemy');
       if (_ah > 0) addLog(st, 'log-heal', `  陣前無我(${me.name}) 自己回復+${_ah.toLocaleString()}（残${_rh.toLocaleString()}）`);
     }
@@ -1128,7 +1128,7 @@ function execFixed(st, me, isSelf, advMult, isTaisho=false, typeFilter=null) {
     const _healSide = isSelf?'ally':'enemy';
     const target = [...allies,me].filter(a=>a.hp>0).sort((a,b)=>a.hp-b.hp)[0];
     if (target) {
-      const h = applyRate(baseDmg(me.chi,0,me.hp),276,me.chi,true);
+      const h = applyHealRate(me.hp, me.chi, 276);
       const prev = target.hp;
       const {healed} = applyHeal(target,h,st,_healSide);
       addLog(st,'log-heal',`  死灰復然(${target.name}) 回復+${healed.toLocaleString()}（残${target.hp.toLocaleString()}）`);
@@ -1166,7 +1166,7 @@ function execFixed(st, me, isSelf, advMult, isTaisho=false, typeFilter=null) {
     const _healSide = isSelf?'ally':'enemy';
     const targets = [...allies,me].filter(a=>a.hp>0).slice(0,2);
     targets.forEach(a => {
-      const h = applyRate(baseDmg(me.chi,0,me.hp),118,me.chi,true);
+      const h = applyHealRate(me.hp, me.chi, 118);
       const {healed} = applyHeal(a,h,st,_healSide);
       if (healed>0) addLog(st,'log-heal',`  夢幻泡影(${a.name}) 回復+${healed.toLocaleString()}（残${a.hp.toLocaleString()}）`);
       a._mugenBufT = Math.max(a._mugenBufT||0,2); a._mugenBufRate = 0.15;
@@ -1237,7 +1237,7 @@ function execFixed(st, me, isSelf, advMult, isTaisho=false, typeFilter=null) {
     const _healSide = isSelf?'ally':'enemy';
     const cnt = Math.random()<0.5?2:3;
     [...allies,me].filter(a=>a.hp>0).slice(0,cnt).forEach(a => {
-      const h = applyRate(baseDmg(me.chi,0,me.hp),60,me.chi,true);
+      const h = applyHealRate(me.hp, me.chi, 60);
       const {healed} = applyHeal(a,h,st,_healSide);
       if (healed>0) addLog(st,'log-heal',`  一心一徳(${a.name}) 回復+${healed.toLocaleString()}（残${a.hp.toLocaleString()}）`);
       a.kyuyoRate=Math.max(a.kyuyoRate||0,0.76); a._kyuyo1T=true;
@@ -1408,7 +1408,7 @@ function execSlot(st, sk, me, isSelf, advMult, typeFilter=null) {
     });
     const _healSide = isSelf ? 'ally' : 'enemy';
     allies.filter(a=>a.hp>0).slice(0,2).forEach(a=>{
-      const h = applyRate(baseDmg(me.chi,0,me.hp),106,me.chi,true);
+      const h = applyHealRate(me.hp, me.chi, 106);
       const {healed:_ah, remainHp:_rh} = applyHeal(a, h, st, _healSide);
       if (_ah > 0) addLog(st,'log-heal',`  草木皆兵回復(${a.name}) +${_ah.toLocaleString()}（残${_rh.toLocaleString()}）`);
     });
@@ -1417,7 +1417,7 @@ function execSlot(st, sk, me, isSelf, advMult, typeFilter=null) {
     const w = [...allies.filter(a=>a.hp>0)].sort((a,b)=>a.hp-b.hp)[0];
     if (w) {
       const cleared = purify(w, 2);
-      const h = applyRate(baseDmg(me.chi,0,me.hp),260,me.chi,true);
+      const h = applyHealRate(me.hp, me.chi, 260);
       const {healed:_ah, remainHp:_rh} = applyHeal(w, h, st, _healSide);
       addLog(st,'log-heal',`  回天転運(${w.name}) 弱体浄化[${cleared.join(',')||'なし'}]+${_ah.toLocaleString()}回復（残${_rh.toLocaleString()}）`);
     }
@@ -1425,7 +1425,7 @@ function execSlot(st, sk, me, isSelf, advMult, typeFilter=null) {
     const _healSide = isSelf ? 'ally' : 'enemy';
     allies.filter(a=>a.hp>0).slice(0,2).forEach(a=>{
       const rate = a.hp/a.maxHp < 0.5 ? 172 : 132;
-      const h = applyRate(baseDmg(me.chi,0,me.hp),rate,me.chi,true);
+      const h = applyHealRate(me.hp, me.chi, rate);
       const {healed:_ah, remainHp:_rh} = applyHeal(a, h, st, _healSide);
       if (_ah > 0) addLog(st,'log-heal',`  帰還の凱歌(${a.name}) +${_ah.toLocaleString()}（残${_rh.toLocaleString()}）${rate===172?' [HP50%以下]':''}`);
     });
@@ -1433,14 +1433,23 @@ function execSlot(st, sk, me, isSelf, advMult, typeFilter=null) {
     const _healSide = isSelf ? 'ally' : 'enemy';
     const t = pickTarget(allies);
     if (t) {
-      const h = applyRate(baseDmg(me.chi,0,me.hp),212,me.chi,true);
+      const h = applyHealRate(me.hp, me.chi, 212);
       const {healed:_ah, remainHp:_rh} = applyHeal(t, h, st, _healSide);
       if (_ah > 0) addLog(st,'log-heal',`  所領役帳(${t.name}) +${_ah.toLocaleString()}（残${_rh.toLocaleString()}）`);
+    }
+    // 回生2T: 兵力最低の自軍1名（50%確率・知略依存、回復66%・知略依存）
+    const _rojiTgt = allies.filter(a=>a.hp>0).sort((a,b)=>a.hp-b.hp)[0];
+    if (_rojiTgt) {
+      _rojiTgt.kaiseiT = Math.max(_rojiTgt.kaiseiT||0, 2);
+      _rojiTgt.kaiseiProb = Math.min(1.0, 0.50 * statScale(me.chi));
+      _rojiTgt.kaiseiHealRate = 66;
+      _rojiTgt.kaiseiDepStat = me.chi;
+      addLog(st, 'log-buff', `  所領役帳: ${_rojiTgt.name} 回生2T付与`);
     }
   } else if (n==='有備無患') {
     const _healSide = isSelf ? 'ally' : 'enemy';
     allies.filter(a=>a.hp>0).slice(0,2).forEach(a=>{
-      const h = applyRate(baseDmg(me.chi,0,me.hp),108,me.chi,true);
+      const h = applyHealRate(me.hp, me.chi, 108);
       const {healed:_ah, remainHp:_rh} = applyHeal(a, h, st, _healSide);
       if (_ah > 0) addLog(st,'log-heal',`  有備無患(${a.name}) +${_ah.toLocaleString()}（残${_rh.toLocaleString()}）`);
     });
@@ -1902,7 +1911,7 @@ function execSlot(st, sk, me, isSelf, advMult, typeFilter=null) {
       addLog(st,logSide,`  [${side}] 槍の鈴(${me.name}→${t.name}) 兵刃[${r.dmg.toLocaleString()}]${r.label}（残${t.hp.toLocaleString()}）${st._lastMods||''}`);
       st._lastMods = '';
       if (st.turn >= 3) {
-        const h = applyRate(baseDmg(me.bu,0,me.hp),54,me.bu,true);
+        const h = applyHealRate(me.hp, me.bu, 54);
         const {healed:_ah,remainHp:_rh} = applyHeal(me,h,st,isSelf?'ally':'enemy');
         if (_ah>0) addLog(st,'log-heal',`  槍の鈴(T3以降): ${me.name} 回復+${_ah.toLocaleString()}（残${_rh.toLocaleString()}）`);
       }
@@ -1951,7 +1960,7 @@ function execSlot(st, sk, me, isSelf, advMult, typeFilter=null) {
     } else {
       const _healSide=isSelf?'ally':'enemy';
       const a=pickTarget(allies);
-      if(a){const h=applyRate(baseDmg(me.chi,0,me.hp),240,me.chi,true);const{healed:_ah,remainHp:_rh}=applyHeal(a,h,st,_healSide);if(_ah>0)addLog(st,'log-heal',`  一六勝負(回復)(${a.name}) +${_ah.toLocaleString()}（残${_rh.toLocaleString()}）`);}
+      if(a){const h=applyHealRate(me.hp, me.chi, 240);const{healed:_ah,remainHp:_rh}=applyHeal(a,h,st,_healSide);if(_ah>0)addLog(st,'log-heal',`  一六勝負(回復)(${a.name}) +${_ah.toLocaleString()}（残${_rh.toLocaleString()}）`);}
     }
   } else if (n==='岐阜侍従') {
     const t = pickTarget(opp);
@@ -2010,7 +2019,7 @@ function execSlot(st, sk, me, isSelf, advMult, typeFilter=null) {
     const a2=allies.filter(a=>a.hp>0)[0];if(a2){a2._taiwaResistT=3;addLog(st,'log-buff',`  対話: ${a2.name} 混乱耐性3T付与`);}
   } else if (n==='救援') {
     const _healSide=isSelf?'ally':'enemy';
-    const a2=allies.filter(a=>a.hp>0)[0];if(a2){a2.kaiseiT=Math.max(a2.kaiseiT||0,2);addLog(st,'log-buff',`  救援: ${a2.name} 回生2T付与`);}
+    const a2=allies.filter(a=>a.hp>0)[0];if(a2){a2.kaiseiT=Math.max(a2.kaiseiT||0,2);a2.kaiseiProb=0.50;a2.kaiseiHealRate=75;a2.kaiseiDepStat=me.chi;addLog(st,'log-buff',`  救援: ${a2.name} 回生2T付与`);}
   } else if (n==='威圧') {
     opp.filter(o=>o.hp>0).slice(0,2).forEach(t=>{t._bishaDebuf=(t._bishaDebuf||0)+0.15;t._bishaDebufT=Math.max(t._bishaDebufT||0,2);});
     addLog(st,'log-ctrl',`  威圧(戦法): 敵2名 与ダメ-15%(2T)`);
@@ -2117,7 +2126,7 @@ function execCommand(st, me, isSelf, isTaisho=false) {
         const oppTotalHp = oppTeam.reduce((s,u)=>s+(u.hp||0),0);
         const oppMaxHp = oppTeam.reduce((s,u)=>s+(u.maxHp||0),0);
         if (oppMaxHp > 0 && oppTotalHp/oppMaxHp <= 0.35) {
-          const h = applyRate(baseDmg(me.chi,0,me.hp),65,me.chi,true);
+          const h = applyHealRate(me.hp, me.chi, 65);
           const {healed} = applyHeal(me,h,st,isSelf?'ally':'enemy');
           if (healed>0) addLog(st,'log-heal',`  新生・大将技(${me.name}): 回復+${healed.toLocaleString()}（残${me.hp.toLocaleString()}）`);
         }
@@ -2174,7 +2183,7 @@ function execCommand(st, me, isSelf, isTaisho=false) {
         if (allHaveDoT) {
           const _healSide = isSelf?'ally':'enemy';
           (isSelf?st.ally:st.enemy).filter(a=>a.hp>0).forEach(a=>{
-            const h=applyRate(baseDmg(me.chi,0,me.hp),96,me.chi,true);
+            const h=applyHealRate(me.hp, me.chi, 96);
             const {healed}=applyHeal(a,h,st,_healSide);
             if(healed>0)addLog(st,'log-heal',`  内助の賢(${a.name}) 回復+${healed.toLocaleString()}（残${a.hp.toLocaleString()}）`);
           });
@@ -2229,7 +2238,7 @@ function execCommand(st, me, isSelf, isTaisho=false) {
             // 既に麻痺中: 自軍1名回復96%
             const a2 = pickTarget(isSelf?st.ally:st.enemy);
             if (a2) {
-              const h = applyRate(baseDmg(me.bu,0,me.hp),96,me.bu,true);
+              const h = applyHealRate(me.hp, me.bu, 96);
               const {healed:_ah,remainHp:_rh} = applyHeal(a2,h,st,isSelf?'ally':'enemy');
               if (_ah>0) addLog(st,'log-heal',`  疾風迅雷(麻痺中): ${a2.name} 回復+${_ah.toLocaleString()}（残${_rh.toLocaleString()}）`);
             }
@@ -2457,7 +2466,7 @@ function execCommand(st, me, isSelf, isTaisho=false) {
         const _healSide = isSelf?'ally':'enemy';
         const _myTeam = isSelf?st.ally:st.enemy;
         _myTeam.filter(a=>a.hp>0).slice(0,2).forEach(a=>{
-          const h = applyRate(baseDmg(me.chi,0,me.hp),122,me.chi,true);
+          const h = applyHealRate(me.hp, me.chi, 122);
           const {healed:_ah,remainHp:_rh} = applyHeal(a,h,st,_healSide);
           if(_ah>0) addLog(st,'log-heal',`  恵風和雨(${a.name}) +${_ah.toLocaleString()}（残${_rh.toLocaleString()}）`);
         });

@@ -24,6 +24,13 @@ function applyRate(base, rate, atkAttr, dep=false){
 }
 function rand4(){ return 0.956+Math.random()*0.088; }
 
+// 回復基礎値: 144.09*ln(兵力) - 897.91
+function healBase(hp) { return Math.max(0, 144.09 * Math.log(hp) - 897.91); }
+// 回復量: (回復基礎値 + 依存stat) * (rate/100) * 乱数
+function applyHealRate(hp, depStat, rate) {
+  return Math.max(1, Math.round((healBase(hp) + (depStat || 0)) * (rate / 100) * rand4()));
+}
+
 // ─ 会心チェック（兵刃ダメージ後に適用）
 function applyCrit(dmg, me) {
   if ((me?.critRate||0) > 0 && Math.random() < me.critRate) {

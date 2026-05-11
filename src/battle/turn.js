@@ -120,7 +120,7 @@ function processTurn(st, advMult) {
     // 金城湯池: 行動前に自身を回復78%
     if (me._kinjoHealNext) {
       me._kinjoHealNext = false;
-      const _kh = applyRate(baseDmg(me.chi,0,me.hp),78,me.chi,true);
+      const _kh = applyHealRate(me.hp, me.chi, 78);
       const {healed:_kha, remainHp:_khr} = applyHeal(me, _kh, st, isSelf?'ally':'enemy');
       if (_kha > 0) addLog(st,'log-heal',`  金城湯池(${me.name}) 行動前回復+${_kha.toLocaleString()}（残${_khr.toLocaleString()}）`);
     }
@@ -142,7 +142,7 @@ function processTurn(st, advMult) {
       const _mySide = isSelf ? 'ally' : 'enemy';
       const _healTargets = _isZen ? allies.filter(e=>e.hp>0) : allies.filter(e=>e.hp>0).slice(0,2);
       _healTargets.forEach(e=>{
-        const h = applyRate(baseDmg(me.chi,0,me.hp),76,me.chi,true);
+        const h = applyHealRate(me.hp, me.chi, 76);
         const {healed:_ah, remainHp:_rh} = applyHeal(e, h, st, _mySide);
         if (_ah > 0) addLog(st,'log-heal',`  千成瓢箪(${me.name}→${e.name}) +${_ah.toLocaleString()}（残${_rh.toLocaleString()}）`);
         else addLog(st,'log-info',`  千成瓢箪(${me.name}→${e.name}) 回復不発（負傷兵なし）`);
@@ -322,7 +322,7 @@ function processTurn(st, advMult) {
           // 鬼美濃: 被ダメ時35%で弱体浄化＋回復112%
           if (tgt.fixed?.name === '鬼美濃' && Math.random() < 0.35) {
             const cleared = purify(tgt, 1);
-            const hb = applyRate(baseDmg(tgt.to, 0, tgt.hp), 112, tgt.to, true);
+            const hb = applyHealRate(tgt.hp, tgt.to, 112);
             const _kibiSide = isSelf ? 'enemy' : 'ally';
             const {healed:_kbAh, remainHp:_kbRh} = applyHeal(tgt, hb, st, _kibiSide);
             addLog(st, 'log-heal', `  鬼美濃(${tgt.name}) 浄化[${cleared.join(',')||'なし'}]+回復+${_kbAh.toLocaleString()}（残${_kbRh.toLocaleString()}）`);
@@ -416,7 +416,7 @@ function processTurn(st, advMult) {
               addLog(st, _gIsSelf?'log-ally':'log-enemy', `  剛毅木訥反撃(${_gHolder.name}→${me.name}) 兵刃[${_gFin.toLocaleString()}]（残${me.hp.toLocaleString()}）${st._lastMods||''}`);
               st._lastMods = '';
             }
-            const _gHeal = applyRate(baseDmg(_gHolder.bu, 0, _gHolder.hp), 86, _gHolder.bu, true);
+            const _gHeal = applyHealRate(_gHolder.hp, _gHolder.bu, 86);
             const {healed:_gH, remainHp:_gRH} = applyHeal(tgt, _gHeal, st, _gIsSelf?'ally':'enemy');
             if (_gH > 0) addLog(st, 'log-heal', `  剛毅木訥回復(${tgt.name}) +${_gH.toLocaleString()}（残${_gRH.toLocaleString()}）`);
           }
@@ -458,7 +458,7 @@ function processTurn(st, advMult) {
           // 鬼美濃（馬場信春）passive: 被ダメ時35%で弱体浄化+回復112%
           if (tgt.fixed?.name === '鬼美濃' && tgt.hp > 0 && Math.random() < 0.35) {
             const _kimiCleared = purify(tgt, 1);
-            const _kimH = applyRate(baseDmg(tgt.to, 0, tgt.hp), 112, tgt.to, true);
+            const _kimH = applyHealRate(tgt.hp, tgt.to, 112);
             const {healed:_kimHH, remainHp:_kimRH} = applyHeal(tgt, _kimH, st, !isSelf?'ally':'enemy');
             addLog(st, isSelf?'log-enemy':'log-ally', `  鬼美濃(${tgt.name}): 被ダメ→${_kimiCleared.length?_kimiCleared.join('・')+'浄化＋':''}回復+${_kimHH.toLocaleString()}（残${_kimRH.toLocaleString()}）`);
           }
@@ -627,7 +627,7 @@ function processTurn(st, advMult) {
         const _bsCnt = Math.random() < 0.5 ? 2 : 3;
         const _bsSide = isSelf ? 'ally' : 'enemy';
         allies.filter(a=>a.hp>0).slice(0, _bsCnt).forEach(a => {
-          const _h = applyRate(baseDmg(me.bu, 0, me.hp), 54, me.bu, true);
+          const _h = applyHealRate(me.hp, me.bu, 54);
           const {healed:_ah, remainHp:_rh} = applyHeal(a, _h, st, _bsSide);
           if (_ah > 0) addLog(st, 'log-heal', `  毘沙門天(${me.name}→${a.name}) 回復+${_ah.toLocaleString()}（残${_rh.toLocaleString()}）`);
         });
@@ -716,7 +716,7 @@ function processTurn(st, advMult) {
     const oppMaxHp = st[oppSide].reduce((s,b)=>s+b.maxHp, 0);
     const oppCurHp = st[oppSide].reduce((s,b)=>s+Math.max(0,b.hp), 0);
     if (oppMaxHp > 0 && oppCurHp / oppMaxHp <= 0.35) {
-      const h = applyRate(baseDmg(u.chi,0,u.hp), 80, u.chi, true);
+      const h = applyHealRate(u.hp, u.chi, 80);
       const {healed:_ah, remainHp:_rh} = applyHeal(u, h, st, side);
       if (_ah > 0) addLog(st,'log-heal',`  新生・大将技(${u.name}) 敵残35%以下→自己回復 +${_ah.toLocaleString()}（残${_rh.toLocaleString()}）`);
     }
@@ -767,7 +767,7 @@ function processTurn(st, advMult) {
     st[side].forEach(me => {
       if (me.hp > 0 && (me.kyuyoRate||0) > 0) {
         if (Math.random() < me.kyuyoRate) {
-          const h = applyRate(baseDmg(me.chi,0,me.hp), 60, me.chi, true);
+          const h = applyHealRate(me.hp, me.chi, 60);
           const {healed:_ah, remainHp:_rh} = applyHeal(me, h, st, side);
           if (_ah > 0) addLog(st, 'log-heal', `  休養(${me.name}) +${_ah.toLocaleString()}（残${_rh.toLocaleString()}）`);
         }
@@ -955,6 +955,10 @@ function processTurn(st, advMult) {
         const hasAtkDmgBuff = me.ranzuList.some(r => r.t > 0 && r.atkDmg);
         if (!hasAtkDmgBuff) me.buff_atkDmg = 1.0;
         me.ranzuList = me.ranzuList.filter(r=>r.t>0);
+      }
+      // 盤石耽々: 毎ターン被ダメ軽減+4%（統率依存）
+      if (me.hp > 0 && (me._bandokuInc||0) > 0) {
+        me._bandokuDef = Math.min(0.90, me._bandokuDef + me._bandokuInc);
       }
       // 軍神大将技: 毎ターン追加1回溜め獲得（大将のみ）
       if (_mi === 0 && me.fixed?.name === '軍神' && me.hp > 0) {

@@ -186,8 +186,8 @@ function dealDmg(st, target, dmg, attacker, attackerIsSelf, isMelee=false, isChi
   }
   // 与ダメ修正を一括適用（同種乗算・バフ/デバフ間加算）
   if (_atkBuffRates.length > 0 || _atkDebufRates.length > 0) {
-    const _buffNet  = _atkBuffRates.reduce( (acc, r) => 1 - (1 - acc) * (1 - r), 0);
-    const _debufNet = _atkDebufRates.reduce((acc, r) => 1 - (1 - acc) * (1 - r), 0);
+    const _buffNet  = _atkBuffRates.reduce( (acc, r) => acc + r, 0);
+    const _debufNet = _atkDebufRates.reduce((acc, r) => acc + r, 0);
     const _netMult  = Math.max(0, 1 + _buffNet - _debufNet);
     const _netPct   = Math.round((_netMult - 1) * 100);
     const _sign = _netPct >= 0 ? '+' : '';
@@ -217,6 +217,9 @@ function dealDmg(st, target, dmg, attacker, attackerIsSelf, isMelee=false, isChi
     applyMod(`特性兵刃被ダメ軽減`, Math.round(finalDmg * (1 - target.traitBuDefReduce)));
   if (isChi && (target.traitChiDefReduce||0) > 0)
     applyMod(`特性計略被ダメ軽減`, Math.round(finalDmg * (1 - target.traitChiDefReduce)));
+  // 盤石耽々: 被ダメ軽減（統率依存、毎T増加）
+  if ((target._bandokuDef||0) > 0)
+    applyMod(`盤石耽々`, Math.round(finalDmg * (1 - target._bandokuDef)));
   // 風林火山【山】: 被ダメ-22%
   if (isMelee && (target._furinDefBuf||0) > 0)
     applyMod(`風林火山(山)`, Math.round(finalDmg * (1 - target._furinDefBuf)));
@@ -282,8 +285,11 @@ function dealDmg(st, target, dmg, attacker, attackerIsSelf, isMelee=false, isChi
 
   // 回生：ダメージを受けるたびに発動（kaiseiT > 0の間）
   if (target.hp > 0 && (target.kaiseiT || 0) > 0 && finalDmg > 0) {
-    if (Math.random() < 0.50) {
-      const h = Math.round(target.maxHp * 0.05);
+    const _kProb = target.kaiseiProb ?? 0.50;
+    const _kRate = target.kaiseiHealRate ?? 66;
+    const _kStat = (target.kaiseiDepStat || 0) > 0 ? target.kaiseiDepStat : (target.chi || 100);
+    if (Math.random() < _kProb) {
+      const h = applyHealRate(target.hp, _kStat, _kRate);
       const tgtSide = attackerIsSelf ? 'enemy' : 'ally';
       const {healed: _kaiseiH, remainHp: _kaiseiRH} = applyHeal(target, h, st, tgtSide);
       if (_kaiseiH > 0) (st._pendingPostAttackLogs = st._pendingPostAttackLogs||[]).push({cls:'log-heal', msg:`  回生(${target.name}) ダメ受け→+${_kaiseiH.toLocaleString()}（残${_kaiseiRH.toLocaleString()}）`});

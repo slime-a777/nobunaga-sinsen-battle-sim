@@ -69,6 +69,9 @@ function initUnit(b) {
     dousatsu: 0,            // 洞察ターン残（制御効果無効）
     yoheiHp: 0,             // 傭兵 追加兵力シールド（ダメを先に吸収）
     kaiseiT: 0,             // 回生ターン残（毎ターン回復）
+    kaiseiProb: 0.50,       // 回生発動確率
+    kaiseiHealRate: 66,     // 回生回復率(%)
+    kaiseiDepStat: 0,       // 回生依存stat値（0=対象のchi使用）
     hajiRate: 0,            // 破陣ダメ増加率
     kyuyoRate,              // 休養確率（毎T確率で回復）
     prepName: null,         // 準備中のスロット戦法名
@@ -129,6 +132,8 @@ function initUnit(b) {
     _sasanoPrepSkip: false,
     // 洞察反撃（岡部元信）
     _dousatsuRevengeT: 0,
+    // 盤石耽々: 受動被ダメ軽減（毎T増加）
+    _bandokuDef: 0, _bandokuInc: 0,
   };
 }
 
@@ -183,6 +188,9 @@ function initState(build) {
     st[side].forEach(t => {
       t.to = (t.to || 100) + 20;
       t.kaiseiT = Math.max(t.kaiseiT || 0, 3);
+      t.kaiseiProb = Math.min(1.0, 0.35 * statScale(holder.to || 100));
+      t.kaiseiHealRate = 65;
+      t.kaiseiDepStat = holder.to || 100;
     });
     addLog(st,'log-buff',`  三河弓兵隊(開戦前): ${side==='ally'?'味方':'敵'}全軍統率+20・回生3T付与`);
   });
@@ -205,6 +213,17 @@ function initState(build) {
     holder.traitBuDefReduce  = (holder.traitBuDefReduce  || 0) + 0.35;
     holder.traitChiDefReduce = (holder.traitChiDefReduce || 0) + 0.35;
     addLog(st,'log-buff',`  夜叉美濃(${holder.name}): 兵刃・計略被ダメ-35%`);
+  });
+
+  // 盤石耽々: 被ダメ-9%(統率依存)、毎T+4%(統率依存)スタック
+  ['ally','enemy'].forEach(side => {
+    st[side].forEach(u => {
+      const has = u.slots?.some(s => s?.name === '盤石耽々') || u.fixed?.name === '盤石耽々';
+      if (!has) return;
+      u._bandokuDef = Math.min(0.90, 0.09 * statScale(u.to || 100));
+      u._bandokuInc = 0.04 * statScale(u.to || 100);
+      addLog(st, 'log-buff', `  盤石耽々(${u.name}): 被ダメ-${Math.round(u._bandokuDef*100)}%（毎T+${Math.round(u._bandokuInc*100)}%増加）`);
+    });
   });
 
   return st;
