@@ -291,9 +291,29 @@ function processTurn(st, advMult) {
         if (effectiveCritRate > 0 && Math.random() < effectiveCritRate) {
           dmgBase *= (1 + (me.critBonus||0.5)); critLabel = ' ★会心';
         }
+        const _preHP = tgt.hp;
         const fin = dealDmg(st, tgt, Math.round(dmgBase * rand4()), me, isSelf, true);
+        // 表裏比興リアクション: 混乱対象の初回通常攻撃で発動（自軍攻撃→回復 / 敵軍攻撃→計略ダメ）
+        if (me._hyouriReaction && !me._hyouriReaction.used) {
+          me._hyouriReaction.used = true;
+          const { caster, casterIsSelf } = me._hyouriReaction;
+          if (caster.hp > 0) {
+            const meOwnTeam = isSelf ? st.ally : st.enemy;
+            const hyouriLogS = casterIsSelf ? 'log-ally' : 'log-enemy';
+            if (meOwnTeam.includes(tgt)) {
+              const h = applyHealRate(me.hp, caster.chi, 90);
+              const { healed } = applyHeal(me, h, st, isSelf ? 'ally' : 'enemy');
+              if (healed > 0) addLog(st, 'log-heal', `  表裏比興(${caster.name}): 混乱が自軍へ→${me.name}回復+${healed.toLocaleString()}（残${me.hp.toLocaleString()}）`);
+            } else {
+              const base = baseDmg(caster.chi, me.chi, caster.hp);
+              const d = applyRate(base, 90, caster.chi, true);
+              const actualDmg = dealDmg(st, me, d, caster, casterIsSelf, false, true);
+              if (actualDmg > 0) { addLog(st, hyouriLogS, `  表裏比興(${caster.name}→${me.name}): 混乱後 敵軍攻撃→計略[${actualDmg.toLocaleString()}]（残${me.hp.toLocaleString()}）${st._lastMods||''}`); st._lastMods = ''; }
+            }
+          }
+        }
         if (fin > 0) {
-          addLog(st, logSide, `  ${sideLabel} ${me.name}→${tgt.name} ${label} [${fin.toLocaleString()}]${critLabel}（残${tgt.hp.toLocaleString()}）${st._lastMods||''}`);
+          addLog(st, logSide, `  ${sideLabel} ${me.name}→${tgt.name} ${label} [${fin.toLocaleString()}]${critLabel}（残${Math.max(0, _preHP - fin).toLocaleString()}）${st._lastMods||''}`);
           st._lastMods = '';
           (st._pendingPostAttackLogs||[]).forEach(({cls, msg}) => addLog(st, cls, msg));
           st._pendingPostAttackLogs = [];
@@ -784,6 +804,7 @@ function processTurn(st, advMult) {
       if (me._kichoDebuf > 0) me._kichoDebuf--;
       if ((me._jubaiT||0) > 0) { me._jubaiT--; if (me._jubaiT <= 0) { me._jubai = 0; me._jubaiT = 0; } }
       if (me.confused > 0) me.confused--;
+      if (me._hyouriReaction && ((me.confused||0) === 0 || me._hyouriReaction.used)) me._hyouriReaction = null;
       if (me.musaku > 0) me.musaku--;
       if (me.hibi > 0) me.hibi--;
       if ((me.iatsuT||0) > 0) me.iatsuT--;

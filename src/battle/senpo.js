@@ -470,17 +470,21 @@ function execFixed(st, me, isSelf, advMult, isTaisho=false, typeFilter=null) {
       const wasConfused = (t.confused||0) > 0;
       let d, kr;
       if (wasConfused) {
-        const alt = opp.filter(o=>o.hp>0&&o!==t)[0] || t;
+        // 既に混乱中: 別の敵軍単体（優先的に目標の友軍＝同じ敵チーム）に192%
+        const realOpp = isSelf ? st.enemy : st.ally;
+        const alt = realOpp.filter(o=>o.hp>0&&o!==t)[0] || t;
         d = applyRate(baseDmg(me.chi, alt.chi, me.hp), 192, me.chi, true);
         kr = applyKiryaku(d, me, st, isSelf);
         const actual = dealDmg(st, alt, kr.val, me, isSelf, false, true);
-        addLog(st, logS, `  [${isSelf?'自':'敵'}] 表裏比興(${me.name}→${alt.name}) 計略(混乱後)[${actual.toLocaleString()}]${kr.label}（残${alt.hp.toLocaleString()}）${st._lastMods||''}`);
+        addLog(st, logS, `  [${isSelf?'自':'敵'}] 表裏比興(${me.name}→${alt.name}) 計略(混乱中)[${actual.toLocaleString()}]${kr.label}（残${alt.hp.toLocaleString()}）${st._lastMods||''}`);
         st._lastMods = '';
       } else {
         d = applyRate(base, 142, me.chi, true);
         kr = applyKiryaku(d, me, st, isSelf);
         const actual = dealDmg(st, t, kr.val, me, isSelf, false, true);
         tryCtrl(t, u=>{ u.confused = Math.max(u.confused||0, 1); }, '混乱', st);
+        // 混乱対象の次の通常攻撃を監視（自軍攻撃→回復 / 敵軍攻撃→計略ダメ）
+        t._hyouriReaction = { caster: me, casterIsSelf: isSelf, used: false };
         addLog(st, logS, `  [${isSelf?'自':'敵'}] 表裏比興(${me.name}→${t.name}) 計略[${actual.toLocaleString()}]${kr.label}+混乱1T（残${t.hp.toLocaleString()}）${st._lastMods||''}`);
         st._lastMods = '';
       }
@@ -2132,13 +2136,20 @@ function execCommand(st, me, isSelf, isTaisho=false) {
         }
       }
     }
-    // 風林火山（武田信玄）: 2T毎に旗効果（風→林→火→山）
+    // 風林火山（武田信玄）: 2T毎に旗効果（最高属性で最初の旗決定→風→林→火→山の順）
     if (f.name === '風林火山') {
       if (st.turn===1) addLog(st,'log-buff',`  風林火山(${me.name}): 2T毎に旗効果発動（以降継続）`);
       const flags=['風','林','火','山'];
       me._furinkazan=(me._furinkazan||0);
+      if (me._furinStartOffset === undefined) {
+        const mx = Math.max(me.spd||0, me.chi||0, me.bu||0, me.to||0);
+        if (mx === (me.spd||0)) me._furinStartOffset = 0;
+        else if (mx === (me.chi||0)) me._furinStartOffset = 1;
+        else if (mx === (me.bu||0)) me._furinStartOffset = 2;
+        else me._furinStartOffset = 3;
+      }
       if (st.turn%2===1) {
-        const flag=flags[me._furinkazan%4];
+        const flag=flags[(me._furinStartOffset + me._furinkazan) % 4];
         const logS=isSelf?'log-ally':'log-enemy';
         const cnt=Math.random()<(isTaisho?0.75:0.5)?3:2;
         const myTeam=isSelf?st.ally:st.enemy;

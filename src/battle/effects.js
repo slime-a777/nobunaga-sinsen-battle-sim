@@ -72,21 +72,23 @@ function dealDmg(st, target, dmg, attacker, attackerIsSelf, isMelee=false, isChi
     finalDmg = newVal;
   };
 
+  // ─ ダメージ補正（与ダメ・被ダメを加算合成） ─
+  const _atkBuffRates  = [];  // 増加率 (e.g. 0.22 = +22%)
+  const _atkDebufRates = [];  // 軽減率 (e.g. 0.50 = -50%)
+  const _atkModLabels  = [];
   // 一領具足: T1〜2 対象サイドの被ダメ-12%（武勇依存）
   if (st.ichiryo && (st.ichiryo.turns||0) > 2) {
     const _tSide = attackerIsSelf ? 'enemy' : 'ally';
-    if (_tSide === st.ichiryo.side)
-      applyMod(`一領具足防御`, Math.round(finalDmg * (1 - Math.min(0.24, 0.12 * statScale(st.ichiryo.bu)))));
+    if (_tSide === st.ichiryo.side) {
+      const r = Math.min(0.24, 0.12 * statScale(st.ichiryo.bu));
+      _atkDebufRates.push(r); _atkModLabels.push(`一領具足防御-${Math.round(r*100)}%`);
+    }
   }
   // 知者楽水防御（統率依存: 被ダメ-24%）
-  if (target._chiryaku > 0)
-    applyMod(`知者楽水防御`, Math.round(finalDmg * (1 - 0.24 * statScale(target._chiryaku_to||100))));
-  // ─ 与ダメ修正（同種乗算・バフ/デバフ間加算） ─
-  // 同種バフ: buffNet = 1-(1-b1)*(1-b2)*... 同種デバフも同様。バフ/デバフ間は加算で合成
-  const _atkBuffRates  = [];  // 与ダメバフ各増加率 (e.g. 0.30 = +30%)
-  const _atkDebufRates = [];  // 与ダメデバフ各減少率の大きさ (e.g. 0.28 = -28%)
-  const _atkModLabels  = [];
-
+  if (target._chiryaku > 0) {
+    const r = 0.24 * statScale(target._chiryaku_to||100);
+    _atkDebufRates.push(r); _atkModLabels.push(`知者楽水防御-${Math.round(r*100)}%`);
+  }
   // 深慮遠謀: 攻撃者に与ダメ-28%（知略依存）
   if (attacker._shintyo > 0) {
     const r = Math.min(1, 0.28 * statScale(attacker._shintyo_chi||100));
@@ -184,59 +186,65 @@ function dealDmg(st, target, dmg, attacker, attackerIsSelf, isMelee=false, isChi
       _atkBuffRates.push(attacker._shuusuiBuf); _atkModLabels.push(`秋水一色+${Math.round(attacker._shuusuiBuf*100)}%`);
     }
   }
-  // 与ダメ修正を一括適用（同種乗算・バフ/デバフ間加算）
-  if (_atkBuffRates.length > 0 || _atkDebufRates.length > 0) {
-    const _buffNet  = _atkBuffRates.reduce( (acc, r) => acc + r, 0);
-    const _debufNet = _atkDebufRates.reduce((acc, r) => acc + r, 0);
-    const _netMult  = Math.max(0, 1 + _buffNet - _debufNet);
-    const _netPct   = Math.round((_netMult - 1) * 100);
-    const _sign = _netPct >= 0 ? '+' : '';
-    applyMod(`与ダメ[${_atkModLabels.join('・')}]→${_sign}${_netPct}%`, Math.round(finalDmg * _netMult));
-  }
-
-  // ─ 被ダメ修正（目標の被ダメ軽減・増加） ─
   // 罵詈雑言: 通常攻撃・突撃の被ダメ50%カット（能動戦法は対象外）
-  if (isMelee && target.baritauntProtect && !st._isActiveSkill)
-    applyMod(`罵詈雑言防御`, Math.round(finalDmg * 0.5));
+  if (isMelee && target.baritauntProtect && !st._isActiveSkill) {
+    _atkDebufRates.push(0.50); _atkModLabels.push(`罵詈雑言防御-50%`);
+  }
   // 御旗楯無: 被ダメ時40%（武勇依存）で被ダメ-40%（知略依存）軽減
   const _hasMihata = target.slots?.some(s=>s?.name==='御旗楯無') || target.fixed?.name==='御旗楯無';
   if (_hasMihata) {
     const _mhProb = Math.min(1.0, 0.40 * statScale(target.bu||100));
     if (Math.random() < _mhProb) {
       const _mhReduce = Math.min(0.80, 0.40 * statScale(target.chi||100));
-      applyMod(`御旗楯無`, Math.round(finalDmg * (1 - _mhReduce)));
+      _atkDebufRates.push(_mhReduce); _atkModLabels.push(`御旗楯無-${Math.round(_mhReduce*100)}%`);
     }
   }
-  // 十面埋伏: 防御側の被ダメ+18%（_jubai は増加率の合計値）
-  if ((target._jubai||0) > 0)
-    applyMod(`十面埋伏`, Math.round(finalDmg * (1 + target._jubai)));
+  // 十面埋伏: 防御側の被ダメ+N%（_jubai は増加率の合計値）
+  if ((target._jubai||0) > 0) {
+    _atkBuffRates.push(target._jubai); _atkModLabels.push(`十面埋伏+${Math.round(target._jubai*100)}%`);
+  }
   // 特性: 防御側の被ダメ軽減（全体・兵刃・計略）
-  if ((target.traitDefReduce||0) > 0)
-    applyMod(`特性被ダメ軽減`, Math.round(finalDmg * (1 - target.traitDefReduce)));
-  if (isMelee && (target.traitBuDefReduce||0) > 0)
-    applyMod(`特性兵刃被ダメ軽減`, Math.round(finalDmg * (1 - target.traitBuDefReduce)));
-  if (isChi && (target.traitChiDefReduce||0) > 0)
-    applyMod(`特性計略被ダメ軽減`, Math.round(finalDmg * (1 - target.traitChiDefReduce)));
+  if ((target.traitDefReduce||0) > 0) {
+    _atkDebufRates.push(target.traitDefReduce); _atkModLabels.push(`特性被ダメ軽減-${Math.round(target.traitDefReduce*100)}%`);
+  }
+  if (isMelee && (target.traitBuDefReduce||0) > 0) {
+    _atkDebufRates.push(target.traitBuDefReduce); _atkModLabels.push(`特性兵刃被ダメ軽減-${Math.round(target.traitBuDefReduce*100)}%`);
+  }
+  if (isChi && (target.traitChiDefReduce||0) > 0) {
+    _atkDebufRates.push(target.traitChiDefReduce); _atkModLabels.push(`特性計略被ダメ軽減-${Math.round(target.traitChiDefReduce*100)}%`);
+  }
   // 盤石耽々: 被ダメ軽減（統率依存、毎T増加）
-  if ((target._bandokuDef||0) > 0)
-    applyMod(`盤石耽々`, Math.round(finalDmg * (1 - target._bandokuDef)));
+  if ((target._bandokuDef||0) > 0) {
+    _atkDebufRates.push(target._bandokuDef); _atkModLabels.push(`盤石耽々-${Math.round(target._bandokuDef*100)}%`);
+  }
   // 風林火山【山】: 被ダメ-22%
-  if (isMelee && (target._furinDefBuf||0) > 0)
-    applyMod(`風林火山(山)`, Math.round(finalDmg * (1 - target._furinDefBuf)));
+  if (isMelee && (target._furinDefBuf||0) > 0) {
+    _atkDebufRates.push(target._furinDefBuf); _atkModLabels.push(`風林火山(山)-${Math.round(target._furinDefBuf*100)}%`);
+  }
   // 金城湯池: 自身被ダメ-15%（1T）
-  if ((target._kinjoDefT||0) > 0)
-    applyMod(`金城湯池防御`, Math.round(finalDmg * 0.85));
+  if ((target._kinjoDefT||0) > 0) {
+    _atkDebufRates.push(0.15); _atkModLabels.push(`金城湯池防御-15%`);
+  }
   // 勇志不抜: 被ダメ-20%（簡略化: 肩代わりは省略）
-  if ((target._yuushiBeiT||0) > 0)
-    applyMod(`勇志不抜防御`, Math.round(finalDmg * 0.80));
+  if ((target._yuushiBeiT||0) > 0) {
+    _atkDebufRates.push(0.20); _atkModLabels.push(`勇志不抜防御-20%`);
+  }
   // 献身: 仙桃院の被ダメ+20%（自身のターンに付与）
-  if (target._kensinSelfDebuf)
-    applyMod(`献身自己デバフ`, Math.round(finalDmg * 1.20));
+  if (target._kensinSelfDebuf) {
+    _atkBuffRates.push(0.20); _atkModLabels.push(`献身自己デバフ+20%`);
+  }
   // 警戒周到: 対象サイドの全体被ダメ-22%（知略依存）
   const _tgtSide = attackerIsSelf ? 'enemy' : 'ally';
   if (st._keikaiSide && st._keikaiSide === _tgtSide && (st._keikaiTurns||0) > 0) {
     const _keiReduce = Math.min(0.60, 0.22 * statScale(st._keikaiChi||100));
-    applyMod(`警戒周到防御`, Math.round(finalDmg * (1 - _keiReduce)));
+    _atkDebufRates.push(_keiReduce); _atkModLabels.push(`警戒周到防御-${Math.round(_keiReduce*100)}%`);
+  }
+  // 全修正を加算合成して一括適用
+  if (_atkBuffRates.length > 0 || _atkDebufRates.length > 0) {
+    const _buffNet  = _atkBuffRates.reduce( (acc, r) => acc + r, 0);
+    const _debufNet = _atkDebufRates.reduce((acc, r) => acc + r, 0);
+    const _netMult  = Math.max(0, 1 + _buffNet - _debufNet);
+    applyMod(`ダメ補正[${_atkModLabels.join('・')}]`, Math.round(finalDmg * _netMult));
   }
 
   // バフ/デバフ修正を st._lastMods に格納（攻撃ログ側で1行に統合して表示）

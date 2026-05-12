@@ -188,7 +188,10 @@ function initState(build) {
     st[side].forEach(t => {
       t.to = (t.to || 100) + 20;
       t.kaiseiT = Math.max(t.kaiseiT || 0, 3);
-      t.kaiseiProb = Math.min(1.0, 0.35 * statScale(holder.to || 100));
+      // 酒井忠次装備時のみ統率依存で確率増加、それ以外は35%固定
+      t.kaiseiProb = holder.name === '酒井忠次'
+        ? Math.min(1.0, 0.35 * statScale(holder.to || 100))
+        : 0.35;
       t.kaiseiHealRate = 65;
       t.kaiseiDepStat = holder.to || 100;
     });

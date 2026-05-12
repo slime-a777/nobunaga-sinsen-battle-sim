@@ -55,8 +55,11 @@ function applyKiryaku(dmg, me, st=null, isSelf=true) {
   if (fired && st && me?.slots?.some(s => s?.name === '七十二の計')) {
     me.nanaCnt = (me.nanaCnt || 0) + 1;
     if (me.nanaCnt >= 7) {
-      const opp = isSelf ? st.enemy : st.ally;
-      opp.filter(o => o.hp > 0).forEach(t => {
+      const isConfused = (me.confused||0) > 0;
+      const targets = isConfused
+        ? [...st.ally,...st.enemy].filter(o=>o.hp>0).sort(()=>Math.random()-0.5)
+        : (isSelf ? st.enemy : st.ally).filter(o=>o.hp>0);
+      targets.forEach(t => {
         const d = applyRate(baseDmg(me.chi, t.chi, me.hp), 120, me.chi, true);
         const actualDmg = dealDmg(st, t, d, me, isSelf, false, true);
         addLog(st, isSelf?'log-ally':'log-enemy', `  ⚡七十二の計爆発！(${t.name}) [${actualDmg.toLocaleString()}]（残${t.hp.toLocaleString()}）${st._lastMods||''}`);
