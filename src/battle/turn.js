@@ -44,6 +44,13 @@ function processTurn(st, advMult) {
     const _dousatsuAct = (me.dousatsu||0) > 0;
     const _fuusekiAct  = (st.fuuseki[_ctrlFSide][idx]||0) > 0;
 
+    // 前の行動で消化された制御状態の解除ログ（この行動の直前に表示）
+    if (me._cleared_confused) { me._cleared_confused = false; addLog(st, 'log-info', `  混乱解除(${me.name})`); }
+    if (me._cleared_musaku)   { me._cleared_musaku   = false; addLog(st, 'log-info', `  無策解除(${me.name})`); }
+    if (me._cleared_hibi)     { me._cleared_hibi     = false; addLog(st, 'log-info', `  疲弊解除(${me.name})`); }
+    if (me._cleared_dousatsu) { me._cleared_dousatsu = false; addLog(st, 'log-info', `  洞察消失(${me.name})`); }
+    if (me._cleared_fuuseki)  { me._cleared_fuuseki  = false; addLog(st, 'log-info', `  封撃解除(${me.name})`); }
+
     _unitSeq++;
 
     // ─ 継続ダメージ（行動直前に発動）─
@@ -777,26 +784,26 @@ function processTurn(st, advMult) {
     }
 
     // 制御状態ターン消化（行動後）
-    // 行動前に効果が有効だった場合のみカウントダウン。行動中に付与された場合は次行動まで持続
+    // カウントが尽きたら次の行動前に解除ログを出すためフラグをセット
     if (_confusedAct && (me.confused||0) > 0) {
       me.confused--;
-      if (me.confused <= 0) { me.confused = 0; addLog(st, 'log-info', `  混乱解除(${me.name})`); }
+      if (me.confused <= 0) { me.confused = 0; me._cleared_confused = true; }
     }
     if (_musakuAct && (me.musaku||0) > 0) {
       me.musaku--;
-      if (me.musaku <= 0) { me.musaku = 0; addLog(st, 'log-info', `  無策解除(${me.name})`); }
+      if (me.musaku <= 0) { me.musaku = 0; me._cleared_musaku = true; }
     }
     if (_hibiAct && (me.hibi||0) > 0) {
       me.hibi--;
-      if (me.hibi <= 0) { me.hibi = 0; addLog(st, 'log-info', `  疲弊解除(${me.name})`); }
+      if (me.hibi <= 0) { me.hibi = 0; me._cleared_hibi = true; }
     }
     if (_dousatsuAct && (me.dousatsu||0) > 0) {
       me.dousatsu--;
-      if (me.dousatsu <= 0) { me.dousatsu = 0; addLog(st, 'log-info', `  洞察消失(${me.name})`); }
+      if (me.dousatsu <= 0) { me.dousatsu = 0; me._cleared_dousatsu = true; }
     }
     if (_fuusekiAct && (st.fuuseki[_ctrlFSide][idx]||0) > 0) {
       st.fuuseki[_ctrlFSide][idx]--;
-      if (st.fuuseki[_ctrlFSide][idx] <= 0) addLog(st, 'log-info', `  封撃解除(${me.name})`);
+      if (st.fuuseki[_ctrlFSide][idx] <= 0) me._cleared_fuuseki = true;
     }
   }
 
