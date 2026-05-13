@@ -39,8 +39,6 @@ function tryCtrl(target, apply, label, st) {
     return false;
   }
   apply(target);
-  if (!target._ctrlAppliedTurns) target._ctrlAppliedTurns = {};
-  target._ctrlAppliedTurns[label] = st.turn;
   return true;
 }
 

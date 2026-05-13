@@ -36,17 +36,13 @@ function processTurn(st, advMult) {
     const isSelf = side==='ally';
     if (me.hp <= 0) continue;
 
-    // ステータスターン消化（行動開始時・付与ターンはスキップ）
-    {
-      const _cAt = me._ctrlAppliedTurns || {};
-      if ((me.confused||0) > 0 && _cAt['混乱'] !== st.turn) me.confused--;
-      if ((me.musaku||0) > 0 && _cAt['無策'] !== st.turn) me.musaku--;
-      if ((me.hibi||0) > 0 && _cAt['疲弊'] !== st.turn) me.hibi--;
-      if ((me.dousatsu||0) > 0) me.dousatsu--;
-      const _fSide = isSelf ? 'ally' : 'enemy';
-      const _fApt = ((st.fuusekiAppliedTurn||{})[_fSide]||[])[idx] || 0;
-      if ((st.fuuseki[_fSide][idx]||0) > 0 && _fApt !== st.turn) st.fuuseki[_fSide][idx]--;
-    }
+    // 制御状態を行動前に記録（ターン消化は行動後に実施）
+    const _ctrlFSide = isSelf ? 'ally' : 'enemy';
+    const _confusedAct = (me.confused||0) > 0;
+    const _musakuAct   = (me.musaku||0) > 0;
+    const _hibiAct     = (me.hibi||0) > 0;
+    const _dousatsuAct = (me.dousatsu||0) > 0;
+    const _fuusekiAct  = (st.fuuseki[_ctrlFSide][idx]||0) > 0;
 
     _unitSeq++;
 
@@ -62,6 +58,7 @@ function processTurn(st, advMult) {
       me.hp = Math.max(0, me.hp - d);
       addLog(st, 'log-ctrl', `  火傷継続(${me.name}) [${d.toLocaleString()}]${_kaenLabel}（残${me.hp.toLocaleString()}）`);
       me._kaen--;
+      if (me._kaen <= 0) addLog(st, 'log-info', `  火傷解除(${me.name})`);
       if (me.hp <= 0) continue;
     }
     // 水攻め（戦法ごとに異なるrate: suikouRate、デフォルト102%/T）
@@ -76,7 +73,7 @@ function processTurn(st, advMult) {
       me.hp = Math.max(0, me.hp - d);
       addLog(st, 'log-ctrl', `  水攻め継続(${me.name}) [${d.toLocaleString()}]${_suikouLabel}（残${me.hp.toLocaleString()}）`);
       me.suikouT--;
-      if (me.suikouT <= 0) me.healBlock = false;
+      if (me.suikouT <= 0) { me.healBlock = false; addLog(st, 'log-info', `  水攻め解除(${me.name})`); }
       if (me.hp <= 0) continue;
     }
     // 中毒（85%/T）
@@ -90,6 +87,7 @@ function processTurn(st, advMult) {
       me.hp = Math.max(0, me.hp - d);
       addLog(st, 'log-ctrl', `  中毒継続(${me.name}) [${d.toLocaleString()}]${_chudokuLabel}（残${me.hp.toLocaleString()}）`);
       me.chudokuT--;
+      if (me.chudokuT <= 0) addLog(st, 'log-info', `  中毒解除(${me.name})`);
       if (me.hp <= 0) continue;
     }
     // 旋乾転坤（恐慌）継続ダメ
@@ -113,6 +111,7 @@ function processTurn(st, advMult) {
       me.hp = Math.max(0, me.hp - d);
       addLog(st, 'log-ctrl', `  消沈継続(${me.name}) [${d.toLocaleString()}]${_shochinLabel}（残${me.hp.toLocaleString()}）`);
       me.shochinT--;
+      if (me.shochinT <= 0) addLog(st, 'log-info', `  消沈解除(${me.name})`);
       if (me.hp <= 0) continue;
     }
     // 潰走（武勇依存、会心あり: 付与者の会心率を使用）
@@ -126,6 +125,7 @@ function processTurn(st, advMult) {
       me.hp = Math.max(0, me.hp - cr.val);
       addLog(st, 'log-ctrl', `  潰走継続(${me.name}) [${cr.val.toLocaleString()}]${cr.label}（残${me.hp.toLocaleString()}）`);
       me.kaisoT--;
+      if (me.kaisoT <= 0) addLog(st, 'log-info', `  潰走解除(${me.name})`);
       if (me.hp <= 0) continue;
     }
 
@@ -249,6 +249,7 @@ function processTurn(st, advMult) {
     if ((me.iatsuT||0) > 0) {
       addLog(st,'log-ctrl',`  威圧: ${me.name} 行動不能`);
       me.iatsuT--;
+      if (me.iatsuT <= 0) addLog(st, 'log-info', `  威圧解除(${me.name})`);
       _skipAction = true;
     }
     // 麻痺チェック（30%で行動不能）
@@ -256,10 +257,12 @@ function processTurn(st, advMult) {
       if (Math.random() < 0.30) {
         addLog(st,'log-ctrl',`  麻痺効果が発動し、${me.name} 行動不能`);
         me.muku--;
+        if (me.muku <= 0) addLog(st, 'log-info', `  麻痺解除(${me.name})`);
         _skipAction = true;
       } else {
         addLog(st,'log-info',`  麻痺効果は確率により不発（${me.name} 行動可）`);
         me.muku = Math.max(0, me.muku-1);
+        if (me.muku <= 0) addLog(st, 'log-info', `  麻痺解除(${me.name})`);
       }
     }
 
@@ -771,6 +774,29 @@ function processTurn(st, advMult) {
       (me.slots||[]).forEach(sk => {
         if (sk) execSlot(st, sk, me, isSelf, advMult, ['passive']);
       });
+    }
+
+    // 制御状態ターン消化（行動後）
+    // 行動前に効果が有効だった場合のみカウントダウン。行動中に付与された場合は次行動まで持続
+    if (_confusedAct && (me.confused||0) > 0) {
+      me.confused--;
+      if (me.confused <= 0) { me.confused = 0; addLog(st, 'log-info', `  混乱解除(${me.name})`); }
+    }
+    if (_musakuAct && (me.musaku||0) > 0) {
+      me.musaku--;
+      if (me.musaku <= 0) { me.musaku = 0; addLog(st, 'log-info', `  無策解除(${me.name})`); }
+    }
+    if (_hibiAct && (me.hibi||0) > 0) {
+      me.hibi--;
+      if (me.hibi <= 0) { me.hibi = 0; addLog(st, 'log-info', `  疲弊解除(${me.name})`); }
+    }
+    if (_dousatsuAct && (me.dousatsu||0) > 0) {
+      me.dousatsu--;
+      if (me.dousatsu <= 0) { me.dousatsu = 0; addLog(st, 'log-info', `  洞察消失(${me.name})`); }
+    }
+    if (_fuusekiAct && (st.fuuseki[_ctrlFSide][idx]||0) > 0) {
+      st.fuuseki[_ctrlFSide][idx]--;
+      if (st.fuuseki[_ctrlFSide][idx] <= 0) addLog(st, 'log-info', `  封撃解除(${me.name})`);
     }
   }
 
