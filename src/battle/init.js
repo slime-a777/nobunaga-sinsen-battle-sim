@@ -40,7 +40,7 @@ function initUnit(b) {
     if (s.name === '鉄砲僧兵') kyuyoRate = Math.max(kyuyoRate, 0.48); // T1/2/5/6のみ（turn.jsで制御）
   });
   return {
-    ...b, hp: b.maxHp, injured: 0, dead: 0, nanaCnt: 0, tesseki: 0,
+    ...b, hp: b.maxHp, injured: 0, dead: 0, nanaCnt: 0, _nanaFired: false, tesseki: 0,
     bu: (b.bu||100)+buBonus, chi: (b.chi||100)+chiBonus, to: (b.to||100)+toBonus, spd: (b.spd||100)+spdBonus,
     suikouT: 0, muku: 0, heihaki: false,
     ranzuList: [], buff_atkDmg: 1.0, shichiHitCnt: 0, baritauntProtect: false,

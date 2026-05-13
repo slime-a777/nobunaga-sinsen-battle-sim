@@ -51,10 +51,11 @@ function applyKiryaku(dmg, me, st=null, isSelf=true) {
     label = '⚡奇策';
     fired = true;
   }
-  // 七十二の計：奇策発動時にスタック+1し、7スタックで全体計略120%爆発
-  if (fired && st && me?.slots?.some(s => s?.name === '七十二の計')) {
+  // 七十二の計：奇策発動時にスタック+1し、7スタックで全体計略120%爆発（1回限り）
+  if (fired && st && !me?._nanaFired && me?.slots?.some(s => s?.name === '七十二の計')) {
     me.nanaCnt = (me.nanaCnt || 0) + 1;
     if (me.nanaCnt >= 7) {
+      me._nanaFired = true;
       const isConfused = (me.confused||0) > 0;
       const targets = isConfused
         ? [...st.ally,...st.enemy].filter(o=>o.hp>0).sort(()=>Math.random()-0.5)
@@ -62,10 +63,9 @@ function applyKiryaku(dmg, me, st=null, isSelf=true) {
       targets.forEach(t => {
         const d = applyRate(baseDmg(me.chi, t.chi, me.hp), 120, me.chi, true);
         const actualDmg = dealDmg(st, t, d, me, isSelf, false, true);
-        addLog(st, isSelf?'log-ally':'log-enemy', `  ⚡七十二の計爆発！(${t.name}) [${actualDmg.toLocaleString()}]（残${t.hp.toLocaleString()}）${st._lastMods||''}`);
+        addLog(st, isSelf?'log-ally':'log-enemy', `  ⚡七十二の計爆発！(${me.name}→${t.name}) [${actualDmg.toLocaleString()}]（残${t.hp.toLocaleString()}）${st._lastMods||''}`);
         st._lastMods = '';
       });
-      me.nanaCnt = 0;
     }
   }
   return { val, label };
