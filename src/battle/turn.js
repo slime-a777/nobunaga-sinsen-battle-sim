@@ -146,20 +146,28 @@ function processTurn(st, advMult) {
     const sideLabel = isSelf ? '[自]' : '[敵]';
     const logSide = isSelf ? 'log-ally' : 'log-enemy';
 
-    // 千成瓢箪: 保持武将の行動時に自軍2名（または全体）を回復
+    // 千成瓢箪: 保持武将の行動時に自軍2名（または全体）を回復。混乱中は敵味方ランダム
     if (me.fixed?.name === '千成瓢箪' && me.hp > 0) {
       const _isTaishoU = (idx === 0);
       const _zenProb = _isTaishoU ? 0.70 : 0.35;
       const _isZen = Math.random() < _zenProb;
-      const _mySide = isSelf ? 'ally' : 'enemy';
-      const _healTargets = _isZen ? allies.filter(e=>e.hp>0) : allies.filter(e=>e.hp>0).slice(0,2);
+      const _isConfused = (me.confused||0) > 0;
+      let _healTargets;
+      if (_isConfused) {
+        const allLive = [...st.ally, ...st.enemy].filter(u=>u.hp>0);
+        for (let i=allLive.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1));[allLive[i],allLive[j]]=[allLive[j],allLive[i]]; }
+        _healTargets = _isZen ? allLive : allLive.slice(0,2);
+      } else {
+        _healTargets = _isZen ? allies.filter(e=>e.hp>0) : allies.filter(e=>e.hp>0).slice(0,2);
+      }
       _healTargets.forEach(e=>{
+        const _eSide = st.ally.includes(e) ? 'ally' : 'enemy';
         const h = applyHealRate(me.hp, me.chi, 76);
-        const {healed:_ah, remainHp:_rh} = applyHeal(e, h, st, _mySide);
-        if (_ah > 0) addLog(st,'log-heal',`  千成瓢箪(${me.name}→${e.name}) +${_ah.toLocaleString()}（残${_rh.toLocaleString()}）`);
-        else addLog(st,'log-info',`  千成瓢箪(${me.name}→${e.name}) 回復不発（負傷兵なし）`);
+        const {healed:_ah, remainHp:_rh} = applyHeal(e, h, st, _eSide);
+        if (_ah > 0) addLog(st,'log-heal',`  千成瓢箪(${me.name}→${e.name}) +${_ah.toLocaleString()}（残${_rh.toLocaleString()}）${_isConfused?'[混乱]':''}`);
+        else addLog(st,'log-info',`  千成瓢箪(${me.name}→${e.name}) 回復不発（負傷兵なし）${_isConfused?'[混乱]':''}`);
       });
-      if (_isZen) addLog(st,'log-heal',`  千成瓢箪 全体回復発動！（${_healTargets.length}名）${_isTaishoU?'【大将技】':''}`);
+      if (_isZen) addLog(st,'log-heal',`  千成瓢箪 全体回復発動！（${_healTargets.length}名）${_isTaishoU?'【大将技】':''}${_isConfused?'[混乱中]':''}`);
     }
 
     // 風林火山: 保持武将の行動時に毎ターン発動。旗効果は2ターンごとに切り替わる
@@ -340,7 +348,7 @@ function processTurn(st, advMult) {
         const _preHP = tgt.hp;
         const fin = dealDmg(st, tgt, Math.round(dmgBase * rand4()), me, isSelf, true);
         // 表裏比興リアクション: 混乱対象の初回通常攻撃で発動
-        // 自軍攻撃→混乱対象(me)を回復90% / 敵軍攻撃→混乱対象(me)に計略90%
+        // 敵軍(A)攻撃→攻撃されたAの武将(tgt)を回復90% / 自軍誤爆(B)→攻撃されたBの武将(tgt)に計略90%
         if (me._hyouriReaction && !me._hyouriReaction.used) {
           me._hyouriReaction.used = true;
           const { caster, casterIsSelf } = me._hyouriReaction;
@@ -348,17 +356,17 @@ function processTurn(st, advMult) {
             const meOwnTeam = isSelf ? st.ally : st.enemy;
             const hyouriLogS = casterIsSelf ? 'log-ally' : 'log-enemy';
             if (meOwnTeam.includes(tgt)) {
-              // 混乱して自軍(友軍)を攻撃した → 混乱対象(me)の兵力を回復90%
-              const meSide = isSelf ? 'ally' : 'enemy';
-              const h = applyHealRate(caster.hp, caster.chi, 90);
-              const { healed } = applyHeal(me, h, st, meSide);
-              if (healed > 0) addLog(st, 'log-heal', `  表裏比興(${caster.name}): 混乱後 自軍攻撃→${me.name}回復+${healed.toLocaleString()}（残${me.hp.toLocaleString()}）`);
-            } else {
-              // 混乱後も敵軍を攻撃した → 混乱対象(me)に計略90%
-              const base = baseDmg(caster.chi, me.chi, caster.hp);
+              // 混乱して自軍(友軍)を誤爆 → 攻撃されたBの武将(tgt)に計略90%
+              const base = baseDmg(caster.chi, tgt.chi, caster.hp);
               const d = applyRate(base, 90, caster.chi, true);
-              const actualDmg = dealDmg(st, me, d, caster, casterIsSelf, false, true);
-              if (actualDmg > 0) { addLog(st, hyouriLogS, `  表裏比興(${caster.name}→${me.name}): 混乱後 敵軍攻撃→計略[${actualDmg.toLocaleString()}]（残${me.hp.toLocaleString()}）${st._lastMods||''}`); st._lastMods = ''; }
+              const actualDmg = dealDmg(st, tgt, d, caster, casterIsSelf, false, true);
+              if (actualDmg > 0) { addLog(st, hyouriLogS, `  表裏比興(${caster.name}→${tgt.name}): 混乱後 自軍誤爆→計略[${actualDmg.toLocaleString()}]（残${tgt.hp.toLocaleString()}）${st._lastMods||''}`); st._lastMods = ''; }
+            } else {
+              // 混乱後も敵軍を攻撃した → 攻撃されたAの武将(tgt)を回復90%
+              const tgtSide = casterIsSelf ? 'ally' : 'enemy';
+              const h = applyHealRate(caster.hp, caster.chi, 90);
+              const { healed } = applyHeal(tgt, h, st, tgtSide);
+              if (healed > 0) addLog(st, 'log-heal', `  表裏比興(${caster.name}): 混乱後 敵軍攻撃→${tgt.name}回復+${healed.toLocaleString()}（残${tgt.hp.toLocaleString()}）`);
             }
           }
         }
