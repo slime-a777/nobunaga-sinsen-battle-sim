@@ -156,7 +156,8 @@ function processTurn(st, advMult) {
       if (_isConfused) {
         const allLive = [...st.ally, ...st.enemy].filter(u=>u.hp>0);
         for (let i=allLive.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1));[allLive[i],allLive[j]]=[allLive[j],allLive[i]]; }
-        _healTargets = _isZen ? allLive : allLive.slice(0,2);
+        const _normalCount = _isZen ? allies.filter(e=>e.hp>0).length : 2;
+        _healTargets = allLive.slice(0, _normalCount);
       } else {
         _healTargets = _isZen ? allies.filter(e=>e.hp>0) : allies.filter(e=>e.hp>0).slice(0,2);
       }
