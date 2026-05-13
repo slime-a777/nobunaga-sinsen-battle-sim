@@ -113,6 +113,7 @@ function makeState(allies, enemies) {
     ally: allies, enemy: enemies, turn: 1,
     log: [], _logs: [], _lastMods: '',
     fuuseki: { ally:[0,0,0], enemy:[0,0,0] },
+    fuusekiAppliedTurn: { ally:[0,0,0], enemy:[0,0,0] },
     hiyokuSide: null, hiyokuAccum: 0,
   };
 }

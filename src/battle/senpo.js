@@ -54,8 +54,17 @@ function execFixed(st, me, isSelf, advMult, isTaisho=false, typeFilter=null) {
       } else {
         // 発動率チェック
         let fprob = f.prob || 0.35;
-        if ((me._matsuActBoost||0) > 0) fprob = Math.min(1.0, fprob + me._matsuActBoost);
+        const _fbaseProb = fprob;
+        const _fboosts = [];
+        if (me.slots?.some(s => s?.name==='一行三昧') || me.fixed?.name==='一行三昧') {
+          fprob = Math.min(1.0, fprob + 0.14); _fboosts.push('一行三昧+14%');
+        }
+        if (me.slots?.some(s => s?.name==='一上一下') || me.fixed?.name==='一上一下') {
+          fprob = Math.min(1.0, fprob + 0.12); _fboosts.push('一上一下+12%');
+        }
+        if ((me._matsuActBoost||0) > 0) { fprob = Math.min(1.0, fprob + me._matsuActBoost); _fboosts.push(`松柏之操+${Math.round(me._matsuActBoost*100)}%`); }
         if (Math.random() > fprob) return;
+        if (_fboosts.length > 0) addLog(st, 'log-ctrl', `  発動率ブースト(${me.name}固有): ${Math.round(_fbaseProb*100)}%→${Math.round(fprob*100)}% [${_fboosts.join('、')}]`);
         // 撹乱: 能動発動時に計略152%を受ける
         if ((me._kakuranT||0) > 0) {
           const _kakuranDmg = applyRate(baseDmg(150, me.chi, me.hp), 152, 150, true);
@@ -148,7 +157,7 @@ function execFixed(st, me, isSelf, advMult, isTaisho=false, typeFilter=null) {
       if (Math.random() < giveProb) {
         const oppSide = isSelf ? 'enemy' : 'ally';
         const ti = st[oppSide].indexOf(t);
-        if (ti >= 0) st.fuuseki[oppSide][ti] = Math.max(st.fuuseki[oppSide][ti]||0, 1);
+        if (ti >= 0) { st.fuuseki[oppSide][ti] = Math.max(st.fuuseki[oppSide][ti]||0, 1); st.fuusekiAppliedTurn[oppSide][ti] = st.turn; }
         addLog(st,'log-ctrl',`    封撃1T付与`);
       }
     });
@@ -454,7 +463,7 @@ function execFixed(st, me, isSelf, advMult, isTaisho=false, typeFilter=null) {
           addLog(st, 'log-ctrl', `  弾嵐雨霞: ${t.name}に無策1T`);
         } else {
           const ti = st[oppSide].indexOf(t);
-          if (ti >= 0) st.fuuseki[oppSide][ti] = Math.max(st.fuuseki[oppSide][ti]||0, 1);
+          if (ti >= 0) { st.fuuseki[oppSide][ti] = Math.max(st.fuuseki[oppSide][ti]||0, 1); st.fuusekiAppliedTurn[oppSide][ti] = st.turn; }
           addLog(st, 'log-ctrl', `  弾嵐雨霞: ${t.name}に封撃1T`);
         }
       }
@@ -468,24 +477,22 @@ function execFixed(st, me, isSelf, advMult, isTaisho=false, typeFilter=null) {
     if (t) {
       const base = baseDmg(me.chi, t.chi, me.hp);
       const wasConfused = (t.confused||0) > 0;
-      let d, kr;
+      // 仕様1: 常に対象に計略142%＋混乱1T
+      const d = applyRate(base, 142, me.chi, true);
+      const kr = applyKiryaku(d, me, st, isSelf);
+      const actual = dealDmg(st, t, kr.val, me, isSelf, false, true);
+      tryCtrl(t, u=>{ u.confused = Math.max(u.confused||0, 1); }, '混乱', st);
+      t._hyouriReaction = { caster: me, casterIsSelf: isSelf, used: false, turnsLeft: 2 };
+      addLog(st, logS, `  [${isSelf?'自':'敵'}] 表裏比興(${me.name}→${t.name}) 計略[${actual.toLocaleString()}]${kr.label}+混乱1T（残${t.hp.toLocaleString()}）${st._lastMods||''}`);
+      st._lastMods = '';
+      // 仕様2: 対象が既に混乱中なら追加で別の敵に計略192%
       if (wasConfused) {
-        // 既に混乱中: 別の敵軍単体（優先的に目標の友軍＝同じ敵チーム）に192%
         const realOpp = isSelf ? st.enemy : st.ally;
         const alt = realOpp.filter(o=>o.hp>0&&o!==t)[0] || t;
-        d = applyRate(baseDmg(me.chi, alt.chi, me.hp), 192, me.chi, true);
-        kr = applyKiryaku(d, me, st, isSelf);
-        const actual = dealDmg(st, alt, kr.val, me, isSelf, false, true);
-        addLog(st, logS, `  [${isSelf?'自':'敵'}] 表裏比興(${me.name}→${alt.name}) 計略(混乱中)[${actual.toLocaleString()}]${kr.label}（残${alt.hp.toLocaleString()}）${st._lastMods||''}`);
-        st._lastMods = '';
-      } else {
-        d = applyRate(base, 142, me.chi, true);
-        kr = applyKiryaku(d, me, st, isSelf);
-        const actual = dealDmg(st, t, kr.val, me, isSelf, false, true);
-        tryCtrl(t, u=>{ u.confused = Math.max(u.confused||0, 1); }, '混乱', st);
-        // 混乱対象の次の通常攻撃を監視（自軍攻撃→回復 / 敵軍攻撃→計略ダメ）
-        t._hyouriReaction = { caster: me, casterIsSelf: isSelf, used: false };
-        addLog(st, logS, `  [${isSelf?'自':'敵'}] 表裏比興(${me.name}→${t.name}) 計略[${actual.toLocaleString()}]${kr.label}+混乱1T（残${t.hp.toLocaleString()}）${st._lastMods||''}`);
+        const d2 = applyRate(baseDmg(me.chi, alt.chi, me.hp), 192, me.chi, true);
+        const kr2 = applyKiryaku(d2, me, st, isSelf);
+        const actual2 = dealDmg(st, alt, kr2.val, me, isSelf, false, true);
+        addLog(st, logS, `  [${isSelf?'自':'敵'}] 表裏比興(${me.name}→${alt.name}) 追加計略(混乱中)[${actual2.toLocaleString()}]${kr2.label}（残${alt.hp.toLocaleString()}）${st._lastMods||''}`);
         st._lastMods = '';
       }
     }
@@ -853,7 +860,7 @@ function execFixed(st, me, isSelf, advMult, isTaisho=false, typeFilter=null) {
       if (chosen === '封撃') {
         const oppSide = isSelf?'enemy':'ally';
         const ti = st[oppSide].indexOf(t);
-        if (ti>=0) st.fuuseki[oppSide][ti]=Math.max(st.fuuseki[oppSide][ti]||0,2);
+        if (ti>=0) { st.fuuseki[oppSide][ti]=Math.max(st.fuuseki[oppSide][ti]||0,2); st.fuusekiAppliedTurn[oppSide][ti]=st.turn; }
         addLog(st,'log-ctrl',`  津田流砲術: ${t.name} 封撃2T`);
       } else if (chosen === '無策') {
         tryCtrl(t,u=>{u.musaku=Math.max(u.musaku||0,2);},'無策',st);
@@ -1160,7 +1167,7 @@ function execFixed(st, me, isSelf, advMult, isTaisho=false, typeFilter=null) {
       const actual = dealDmg(st,t,cr.val,me,isSelf,true,false);
       addLog(st,logS,`  [${isSelf?'自':'敵'}] 甲山猛虎(${me.name}→${t.name}) 兵刃[${actual.toLocaleString()}]${cr.label}${isFuuseki?'【封撃中強化】':''}（残${t.hp.toLocaleString()}）${st._lastMods||''}`);
       st._lastMods='';
-      if (t.hp>0 && ti>=0) { st.fuuseki[oppSide][ti]=Math.max(st.fuuseki[oppSide][ti]||0,1); addLog(st,'log-ctrl',`  甲山猛虎: ${t.name} 封撃1T付与`); }
+      if (t.hp>0 && ti>=0) { st.fuuseki[oppSide][ti]=Math.max(st.fuuseki[oppSide][ti]||0,1); st.fuusekiAppliedTurn[oppSide][ti]=st.turn; addLog(st,'log-ctrl',`  甲山猛虎: ${t.name} 封撃1T付与`); }
     });
     st._isActiveSkill = false;
   }
@@ -1307,25 +1314,25 @@ function execSlot(st, sk, me, isSelf, advMult, typeFilter=null) {
   }
   // 発動率チェック（一行三昧・独立独歩ボーナス、加算方式）。準備完了の場合は確定発動
   let prob = sk.prob || 1.0;
+  const _baseProb = prob;
+  const _probBoosts = [];
   if (!isPrepped) {
     const _probAllies = isSelf ? st.ally : st.enemy;
     if (sk.type === 'active') {
-      const hasIchigyou = _probAllies.some(a =>
-        a.slots?.some(s => s?.name==='一行三昧') || a.fixed?.name==='一行三昧');
-      if (hasIchigyou) prob = Math.min(1.0, prob + 0.14);
-      const hasIchiJou = _probAllies.some(a =>
-        a.slots?.some(s => s?.name==='一上一下') || a.fixed?.name==='一上一下');
-      if (hasIchiJou) prob = Math.min(1.0, prob + 0.12);
+      const hasIchigyou = me.slots?.some(s => s?.name==='一行三昧') || me.fixed?.name==='一行三昧';
+      if (hasIchigyou) { prob = Math.min(1.0, prob + 0.14); _probBoosts.push('一行三昧+14%'); }
+      const hasIchiJou = me.slots?.some(s => s?.name==='一上一下') || me.fixed?.name==='一上一下';
+      if (hasIchiJou) { prob = Math.min(1.0, prob + 0.12); _probBoosts.push('一上一下+12%'); }
       // 融通自在バフ（個人単位）
-      if ((me._yuuzuuBuf||0) > 0) prob = Math.min(1.0, prob + me._yuuzuuBuf);
+      if ((me._yuuzuuBuf||0) > 0) { prob = Math.min(1.0, prob + me._yuuzuuBuf); _probBoosts.push(`融通自在+${Math.round(me._yuuzuuBuf*100)}%`); }
       // 豊後の戦陣: 統率最高者に能動発動率+8%
-      if ((me._bungoActBoost||0) > 0) prob = Math.min(1.0, prob + me._bungoActBoost);
+      if ((me._bungoActBoost||0) > 0) { prob = Math.min(1.0, prob + me._bungoActBoost); _probBoosts.push(`豊後の戦陣+${Math.round(me._bungoActBoost*100)}%`); }
       // 松柏之操: 大将の能動発動率+15%
-      if ((me._matsuActBoost||0) > 0) prob = Math.min(1.0, prob + me._matsuActBoost);
+      if ((me._matsuActBoost||0) > 0) { prob = Math.min(1.0, prob + me._matsuActBoost); _probBoosts.push(`松柏之操+${Math.round(me._matsuActBoost*100)}%`); }
       // 冷徹無情: 能動発動率+10%(最大2重)
-      if ((me._reitetsuBuf||0) > 0) prob = Math.min(1.0, prob + me._reitetsuBuf);
+      if ((me._reitetsuBuf||0) > 0) { prob = Math.min(1.0, prob + me._reitetsuBuf); _probBoosts.push(`冷徹無情+${Math.round(me._reitetsuBuf*100)}%`); }
       // 越後流軍学: 能動発動率+20%
-      if ((me._echigoActBoost||0) > 0) prob = Math.min(1.0, prob + me._echigoActBoost);
+      if ((me._echigoActBoost||0) > 0) { prob = Math.min(1.0, prob + me._echigoActBoost); _probBoosts.push(`越後流軍学+${Math.round(me._echigoActBoost*100)}%`); }
       // 撹乱: 能動発動時に計略152%を受ける
       if ((me._kakuranT||0) > 0) {
         const _kakuranOpp = isSelf ? st.enemy : st.ally;
@@ -1334,12 +1341,14 @@ function execSlot(st, sk, me, isSelf, advMult, typeFilter=null) {
         addLog(st, isSelf?'log-ally':'log-enemy', `  撹乱(${me.name}): 能動発動→計略[${_kakuranDmg.toLocaleString()}]受けた`);
       }
     } else if (sk.type === 'strike') {
-      const hasIndep = _probAllies.some(a =>
-        a.slots?.some(s => s?.name==='独立独歩') || a.fixed?.name==='独立独歩');
-      if (hasIndep) prob = Math.min(1.0, prob + 0.17);
+      const hasIndep = me.slots?.some(s => s?.name==='独立独歩') || me.fixed?.name==='独立独歩';
+      if (hasIndep) { prob = Math.min(1.0, prob + 0.17); _probBoosts.push('独立独歩+17%'); }
     }
   }
   if (!isPrepped && Math.random() > prob) return;
+  if (!isPrepped && _probBoosts.length > 0) {
+    addLog(st, 'log-ctrl', `  発動率ブースト(${me.name}): ${Math.round(_baseProb*100)}%→${Math.round(prob*100)}% [${_probBoosts.join('、')}]`);
+  }
 
   // 百万一心: 敵の能動戦法発動時に30-50%で阻止＋計略100%
   if (sk.type === 'active' && st._hyakumanHolder?.hp > 0 && st._hyakumanIsSelf !== isSelf) {
@@ -1640,15 +1649,15 @@ function execSlot(st, sk, me, isSelf, advMult, typeFilter=null) {
       addLog(st,logSide,`  [${side}] 瞬息万変(${me.name}→${t.name}) 計略[${r.dmg.toLocaleString()}]${r.label}+混乱1T（残${t.hp.toLocaleString()}）${st._lastMods||''}`);
       st._lastMods = '';
       if (wasConfused) {
-        const a2 = allies.filter(a=>a.hp>0&&a!==me)[0];
-        if (a2) {
-          const rate2 = Math.max(me.bu, me.chi) === me.bu ? 158 : 158;
+        const t2 = opp.filter(o=>o.hp>0&&o!==t)[0];
+        if (t2) {
           const isMelee2 = me.bu >= me.chi;
-          let d2 = applyRate(baseDmg(isMelee2?me.bu:me.chi, isMelee2?t.to:t.chi, a2.hp), rate2, isMelee2?me.bu:me.chi, !isMelee2);
-          if (!isMelee2) { const kr2 = applyKiryaku(d2, a2, st, isSelf); d2 = kr2.val; }
-          else { const cr2 = applyCrit(d2, a2); d2 = cr2.val; }
-          const actual2 = dealDmg(st, t, d2, a2, isSelf, isMelee2, !isMelee2);
-          addLog(st, logSide, `  瞬息万変(混乱中): ${a2.name}→${t.name} 援護攻撃[${actual2.toLocaleString()}]（残${t.hp.toLocaleString()}）${st._lastMods||''}`);
+          const rate2 = 158;
+          let d2 = applyRate(baseDmg(isMelee2?me.bu:me.chi, isMelee2?t2.to:t2.chi, me.hp), rate2, isMelee2?me.bu:me.chi, !isMelee2);
+          if (!isMelee2) { const kr2 = applyKiryaku(d2, me, st, isSelf); d2 = kr2.val; }
+          else { const cr2 = applyCrit(d2, me); d2 = cr2.val; }
+          const actual2 = dealDmg(st, t2, d2, me, isSelf, isMelee2, !isMelee2);
+          addLog(st, logSide, `  瞬息万変(混乱中): ${me.name}→${t2.name} 追加攻撃[${actual2.toLocaleString()}]（残${t2.hp.toLocaleString()}）${st._lastMods||''}`);
           st._lastMods = '';
         }
       }
@@ -1834,7 +1843,7 @@ function execSlot(st, sk, me, isSelf, advMult, typeFilter=null) {
         addLog(st,'log-ctrl',`  不意打ち: ${t.name}に無策${dur}T付与`);
       } else {
         const ti = st[oppSide].indexOf(t);
-        if (ti>=0) st.fuuseki[oppSide][ti] = Math.max(st.fuuseki[oppSide][ti]||0,dur);
+        if (ti>=0) { st.fuuseki[oppSide][ti] = Math.max(st.fuuseki[oppSide][ti]||0,dur); st.fuusekiAppliedTurn[oppSide][ti]=st.turn; }
         addLog(st,'log-ctrl',`  不意打ち: ${t.name}に封撃${dur}T付与`);
       }
     });
@@ -2072,7 +2081,7 @@ function execCommand(st, me, isSelf, isTaisho=false) {
     if (st.turn === 1) {
       if (f.name === '気炎万丈') {
         const oppSide = isSelf?'enemy':'ally';
-        for(let i=0;i<2;i++) st.fuuseki[oppSide][i]=3;
+        for(let i=0;i<2;i++) { st.fuuseki[oppSide][i]=3; st.fuusekiAppliedTurn[oppSide][i]=st.turn; }
         addLog(st,'log-ctrl',`  気炎万丈(${me.name}): 敵2名に封撃3T付与`);
       } else if (f.name === '千成瓢箪') {
         addLog(st,'log-buff','  千成瓢箪: 自軍2名（大将技:全体）を保持武将の行動時に回復（以降継続）');
@@ -2134,43 +2143,6 @@ function execCommand(st, me, isSelf, isTaisho=false) {
           const {healed} = applyHeal(me,h,st,isSelf?'ally':'enemy');
           if (healed>0) addLog(st,'log-heal',`  新生・大将技(${me.name}): 回復+${healed.toLocaleString()}（残${me.hp.toLocaleString()}）`);
         }
-      }
-    }
-    // 風林火山（武田信玄）: 2T毎に旗効果（最高属性で最初の旗決定→風→林→火→山の順）
-    if (f.name === '風林火山') {
-      if (st.turn===1) addLog(st,'log-buff',`  風林火山(${me.name}): 2T毎に旗効果発動（以降継続）`);
-      const flags=['風','林','火','山'];
-      me._furinkazan=(me._furinkazan||0);
-      if (me._furinStartOffset === undefined) {
-        const mx = Math.max(me.spd||0, me.chi||0, me.bu||0, me.to||0);
-        if (mx === (me.spd||0)) me._furinStartOffset = 0;
-        else if (mx === (me.chi||0)) me._furinStartOffset = 1;
-        else if (mx === (me.bu||0)) me._furinStartOffset = 2;
-        else me._furinStartOffset = 3;
-      }
-      if (st.turn%2===1) {
-        const flag=flags[(me._furinStartOffset + me._furinkazan) % 4];
-        const logS=isSelf?'log-ally':'log-enemy';
-        const cnt=Math.random()<(isTaisho?0.75:0.5)?3:2;
-        const myTeam=isSelf?st.ally:st.enemy;
-        const oppTeam=isSelf?st.enemy:st.ally;
-        if (flag==='風') {
-          myTeam.filter(a=>a.hp>0).slice(0,cnt).forEach(a=>{a._furinBuf=(a._furinBuf||0)+0.22;a._furinBufT=Math.max(a._furinBufT||0,2);});
-          addLog(st,logS,`  風林火山【風】(${me.name}): 友軍${cnt}名 兵刃与ダメ+22%(2T)`);
-        } else if (flag==='林') {
-          oppTeam.filter(o=>o.hp>0).slice(0,cnt).forEach(t=>{
-            const kr=applyKiryaku(applyRate(baseDmg(me.chi,t.chi,me.hp),92,me.chi,true),me,st,isSelf);
-            const actual=dealDmg(st,t,kr.val,me,isSelf,false,true);
-            addLog(st,logS,`  風林火山【林】(${me.name}→${t.name}) 計略[${actual.toLocaleString()}]${kr.label}（残${t.hp.toLocaleString()}）${st._lastMods||''}`);st._lastMods='';
-          });
-        } else if (flag==='火') {
-          const times=Math.random()<(isTaisho?0.75:0.5)?2:1;
-          for(let i=0;i<times;i++){const t=pickTarget(oppTeam);if(t){const cr=applyCrit(applyRate(baseDmg(me.bu,t.to,me.hp),156),me);const a=dealDmg(st,t,cr.val,me,isSelf,true,false);addLog(st,logS,`  風林火山【火】(${me.name}→${t.name}) 兵刃[${a.toLocaleString()}]${cr.label}（残${t.hp.toLocaleString()}）${st._lastMods||''}`);st._lastMods='';}}
-        } else {
-          myTeam.filter(a=>a.hp>0).slice(0,cnt).forEach(a=>{a._furinDefBuf=(a._furinDefBuf||0)+0.22;a._furinDefBufT=Math.max(a._furinDefBufT||0,2);});
-          addLog(st,logS,`  風林火山【山】(${me.name}): 友軍${cnt}名 兵刃被ダメ-22%(2T)`);
-        }
-        me._furinkazan++;
       }
     }
     // 三河魂（徳川家康）: 毎T 友軍2名へのセット＋被通攻時に攻撃者全属性-2.5%(最大8重)
@@ -2269,7 +2241,7 @@ function execCommand(st, me, isSelf, isTaisho=false) {
           if (Math.random() < 0.5) {
             const ti = (isSelf?st.enemy:st.ally).indexOf(_tarT);
             const oppSide = isSelf?'enemy':'ally';
-            if (ti>=0) st.fuuseki[oppSide][ti]=Math.max(st.fuuseki[oppSide][ti]||0,1);
+            if (ti>=0) { st.fuuseki[oppSide][ti]=Math.max(st.fuuseki[oppSide][ti]||0,1); st.fuusekiAppliedTurn[oppSide][ti]=st.turn; }
             addLog(st,'log-ctrl',`  樽俎折衝(${me.name}): ${_tarT.name} 封撃1T付与`);
           } else {
             tryCtrl(_tarT,u=>{u.musaku=Math.max(u.musaku||0,1);},'無策',st);
@@ -2404,7 +2376,7 @@ function execCommand(st, me, isSelf, isTaisho=false) {
               else if (chosen === '封撃') {
                 const _fuushiOppSide = isSelf ? 'enemy' : 'ally';
                 const ti = st[_fuushiOppSide].indexOf(tgt);
-                if (ti >= 0) st.fuuseki[_fuushiOppSide][ti] = Math.max(st.fuuseki[_fuushiOppSide][ti]||0, 1);
+                if (ti >= 0) { st.fuuseki[_fuushiOppSide][ti] = Math.max(st.fuuseki[_fuushiOppSide][ti]||0, 1); st.fuusekiAppliedTurn[_fuushiOppSide][ti]=st.turn; }
               }
               addLog(st, 'log-ctrl', `  風姿綽約(${me.name}→${tgt.name}): ${chosen}1T付与`);
             }
@@ -2422,7 +2394,7 @@ function execCommand(st, me, isSelf, isTaisho=false) {
       const opp = isSelf ? st.enemy : st.ally;
       if (sk.name==='気炎万丈') {
         const oppSide = isSelf?'enemy':'ally';
-        for(let i=0;i<2;i++) st.fuuseki[oppSide][i]=3;
+        for(let i=0;i<2;i++) { st.fuuseki[oppSide][i]=3; st.fuusekiAppliedTurn[oppSide][i]=st.turn; }
         addLog(st,'log-ctrl',`  気炎万丈(${me.name}): 敵2名に封撃3T`);
       } else if (sk.name==='罵詈雑言') {
         st.baritaunt = 3;

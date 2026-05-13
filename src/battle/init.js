@@ -147,6 +147,7 @@ function initState(build) {
     enemy: build.enemy.map(initUnit),
     // 共有フラグ
     fuuseki: { ally:[0,0,0], enemy:[0,0,0] }, // 封撃ターン残（通常攻撃のみ不可）
+    fuusekiAppliedTurn: { ally:[0,0,0], enemy:[0,0,0] }, // 封撃付与ターン（同ターン消化スキップ用）
     baritaunt: 0,        // 挑発 残ターン数
     baritauntProb: 0,    // 挑発 発動確率（戦法ごとに異なる: 罵詈雑言90%等）
     baritauntIdx: 0,     // 挑発をかけた武将のインデックス
