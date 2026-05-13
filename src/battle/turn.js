@@ -755,7 +755,14 @@ function processTurn(st, advMult) {
         if (Math.random() < 0.80) {
           st.hiyokuAccum = 0;
           const oppArr = hSide === 'ally' ? st.enemy : st.ally;
-          const t = pickTarget(oppArr);
+          let t;
+          if ((taisho.confused||0) > 0) {
+            const allLive = [...st.ally, ...st.enemy].filter(u => u.hp > 0);
+            t = allLive.length ? allLive[Math.floor(Math.random() * allLive.length)] : null;
+            if (t) addLog(st, logCls, `  混乱(${taisho.name}): 比翼連理の対象がランダム→${t.name}`);
+          } else {
+            t = pickTarget(oppArr);
+          }
           if (t) {
             const base = baseDmg(taisho.chi, t.chi, taisho.hp);
             let d = Math.round((base*0.92 + savedAccum*0.3) * rand4());
@@ -907,6 +914,7 @@ function processTurn(st, advMult) {
       if ((me._gounoDebufT||0) > 0) me._gounoDebufT--;
       if (me.rengiT > 0) me.rengiT--;
       if ((me.rengi50T||0) > 0) me.rengi50T--;
+      if ((me.baritauntProtectT||0) > 0) me.baritauntProtectT--;
       if (me.fuusekiResist > 0) me.fuusekiResist--;
       // 毘沙門天デバフ（与ダメ-9%）ターン減少
       if ((me._bishaDebufT||0) > 0) { me._bishaDebufT--; if (me._bishaDebufT <= 0) me._bishaDebuf = 0; }
@@ -1085,11 +1093,6 @@ function processTurn(st, advMult) {
   });
   if (st.baritaunt > 0) {
     st.baritaunt--;
-    if (st.baritaunt === 0 && st.baritauntSide) {
-      const casterTeam = st[st.baritauntSide];
-      if (casterTeam[st.baritauntIdx]) casterTeam[st.baritauntIdx].baritauntProtect = false;
-      st.baritauntSide = null;
-    }
   }
   // 同気連枝: マーク状態をターン末にクリア（1ターン持続）
   st._doukiMarked = []; st._doukiHolder = null;

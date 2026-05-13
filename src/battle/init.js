@@ -43,7 +43,7 @@ function initUnit(b) {
     ...b, hp: b.maxHp, injured: 0, dead: 0, nanaCnt: 0, _nanaFired: false, tesseki: 0,
     bu: (b.bu||100)+buBonus, chi: (b.chi||100)+chiBonus, to: (b.to||100)+toBonus, spd: (b.spd||100)+spdBonus,
     suikouT: 0, muku: 0, heihaki: false,
-    ranzuList: [], buff_atkDmg: 1.0, shichiHitCnt: 0, baritauntProtect: false,
+    ranzuList: [], buff_atkDmg: 1.0, shichiHitCnt: 0, baritauntProtectT: 0,
     rengiT: 0,              // 連撃ターン残（確定）
     rengi50T: 0,            // 連撃ターン残（50%判定・鬼若子）
     fuusekiResist: 0,       // 封撃耐性ターン残

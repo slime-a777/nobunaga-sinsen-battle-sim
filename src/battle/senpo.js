@@ -2074,7 +2074,7 @@ function execCommand(st, me, isSelf, isTaisho=false) {
         st.baritauntProb = 0.90;
         st.baritauntSide = isSelf ? 'ally' : 'enemy';
         st.baritauntIdx = (isSelf ? st.ally : st.enemy).indexOf(me);
-        me.baritauntProtect = true;
+        me.baritauntProtectT = 3;
         addLog(st,'log-ctrl',`  罵詈雑言(${me.name}): 敵2〜3名に挑発3T(90%)＋自身被ダメ50%軽減`);
       } else if (f.name === '尼御台') {
         const allies = isSelf ? st.ally : st.enemy;
@@ -2383,7 +2383,7 @@ function execCommand(st, me, isSelf, isTaisho=false) {
         st.baritauntProb = 0.90;
         st.baritauntSide = isSelf ? 'ally' : 'enemy';
         st.baritauntIdx = (isSelf ? st.ally : st.enemy).indexOf(me);
-        me.baritauntProtect = true;
+        me.baritauntProtectT = 3;
         addLog(st,'log-ctrl',`  罵詈雑言(${me.name}): 敵2〜3名に挑発3T(90%)＋自身被ダメ50%軽減`);
       } else if (sk.name==='深慮遠謀') {
         opp.filter(o=>o.hp>0).slice(0,2).forEach(t=>{ t._shintyo = 3; t._shintyo_chi = me.chi; });

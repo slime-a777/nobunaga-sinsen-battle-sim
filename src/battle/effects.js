@@ -187,7 +187,7 @@ function dealDmg(st, target, dmg, attacker, attackerIsSelf, isMelee=false, isChi
     }
   }
   // 罵詈雑言: 通常攻撃・突撃の被ダメ50%カット（能動戦法は対象外）
-  if (isMelee && target.baritauntProtect && !st._isActiveSkill) {
+  if (isMelee && (target.baritauntProtectT||0) > 0 && !st._isActiveSkill) {
     _atkDebufRates.push(0.50); _atkModLabels.push(`罵詈雑言防御-50%`);
   }
   // 御旗楯無: 被ダメ時40%（武勇依存）で被ダメ-40%（知略依存）軽減
