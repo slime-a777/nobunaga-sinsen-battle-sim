@@ -162,40 +162,37 @@ function processTurn(st, advMult) {
       if (_isZen) addLog(st,'log-heal',`  千成瓢箪 全体回復発動！（${_healTargets.length}名）${_isTaishoU?'【大将技】':''}`);
     }
 
-    // 風林火山: 保持武将の行動時に2T毎（奇数回行動）に旗効果発動
+    // 風林火山: 保持武将の行動時に毎ターン発動。旗効果は2ターンごとに切り替わる
     if (me.fixed?.name === '風林火山' && me.hp > 0) {
       const _isTaishoF = (idx === 0);
       me._furinActCount = (me._furinActCount || 0) + 1;
-      if (me._furinActCount === 1) addLog(st,'log-buff',`  風林火山(${me.name}): 2T毎に旗効果発動（以降継続）`);
-      if (me._furinActCount % 2 === 1) {
-        const _flags=['風','林','火','山'];
-        me._furinkazan = (me._furinkazan || 0);
-        if (me._furinStartOffset === undefined) {
-          const mx = Math.max(me.spd||0, me.chi||0, me.bu||0, me.to||0);
-          if (mx === (me.spd||0)) me._furinStartOffset = 0;
-          else if (mx === (me.chi||0)) me._furinStartOffset = 1;
-          else if (mx === (me.bu||0)) me._furinStartOffset = 2;
-          else me._furinStartOffset = 3;
-        }
-        const _flag=_flags[(me._furinStartOffset + me._furinkazan) % 4];
-        const _furinCnt=Math.random()<(_isTaishoF?0.75:0.5)?3:2;
-        if (_flag==='風') {
-          allies.filter(a=>a.hp>0).slice(0,_furinCnt).forEach(a=>{a._furinBuf=(a._furinBuf||0)+0.22;a._furinBufT=Math.max(a._furinBufT||0,2);});
-          addLog(st,logSide,`  風林火山【風】(${me.name}): 友軍${_furinCnt}名 兵刃与ダメ+22%(2T)`);
-        } else if (_flag==='林') {
-          opp.filter(o=>o.hp>0).slice(0,_furinCnt).forEach(t=>{
-            const kr=applyKiryaku(applyRate(baseDmg(me.chi,t.chi,me.hp),92,me.chi,true),me,st,isSelf);
-            const actual=dealDmg(st,t,kr.val,me,isSelf,false,true);
-            addLog(st,logSide,`  風林火山【林】(${me.name}→${t.name}) 計略[${actual.toLocaleString()}]${kr.label}（残${t.hp.toLocaleString()}）${st._lastMods||''}`);st._lastMods='';
-          });
-        } else if (_flag==='火') {
-          const _ftimes=Math.random()<(_isTaishoF?0.75:0.5)?2:1;
-          for(let i=0;i<_ftimes;i++){const t=pickTarget(opp);if(t){const cr=applyCrit(applyRate(baseDmg(me.bu,t.to,me.hp),156),me);const a=dealDmg(st,t,cr.val,me,isSelf,true,false);addLog(st,logSide,`  風林火山【火】(${me.name}→${t.name}) 兵刃[${a.toLocaleString()}]${cr.label}（残${t.hp.toLocaleString()}）${st._lastMods||''}`);st._lastMods='';}}
-        } else {
-          allies.filter(a=>a.hp>0).slice(0,_furinCnt).forEach(a=>{a._furinDefBuf=(a._furinDefBuf||0)+0.22;a._furinDefBufT=Math.max(a._furinDefBufT||0,2);});
-          addLog(st,logSide,`  風林火山【山】(${me.name}): 友軍${_furinCnt}名 兵刃被ダメ-22%(2T)`);
-        }
-        me._furinkazan++;
+      if (me._furinActCount === 1) addLog(st,'log-buff',`  風林火山(${me.name}): 毎ターン旗効果発動（2T毎に切替）`);
+      const _flags=['風','林','火','山'];
+      if (me._furinStartOffset === undefined) {
+        const mx = Math.max(me.spd||0, me.chi||0, me.bu||0, me.to||0);
+        if (mx === (me.spd||0)) me._furinStartOffset = 0;
+        else if (mx === (me.chi||0)) me._furinStartOffset = 1;
+        else if (mx === (me.bu||0)) me._furinStartOffset = 2;
+        else me._furinStartOffset = 3;
+      }
+      const _furinIdx = Math.floor((me._furinActCount - 1) / 2);
+      const _flag = _flags[(me._furinStartOffset + _furinIdx) % 4];
+      const _furinCnt = Math.random() < (_isTaishoF ? 0.75 : 0.5) ? 3 : 2;
+      if (_flag==='風') {
+        allies.filter(a=>a.hp>0).slice(0,_furinCnt).forEach(a=>{a._furinBuf=(a._furinBuf||0)+0.22;a._furinBufT=Math.max(a._furinBufT||0,1);});
+        addLog(st,logSide,`  風林火山【風】(${me.name}): 友軍${_furinCnt}名 兵刃与ダメ+22%(1T)`);
+      } else if (_flag==='林') {
+        opp.filter(o=>o.hp>0).slice(0,_furinCnt).forEach(t=>{
+          const kr=applyKiryaku(applyRate(baseDmg(me.chi,t.chi,me.hp),92,me.chi,true),me,st,isSelf);
+          const actual=dealDmg(st,t,kr.val,me,isSelf,false,true);
+          addLog(st,logSide,`  風林火山【林】(${me.name}→${t.name}) 計略[${actual.toLocaleString()}]${kr.label}（残${t.hp.toLocaleString()}）${st._lastMods||''}`);st._lastMods='';
+        });
+      } else if (_flag==='火') {
+        const _ftimes=Math.random()<(_isTaishoF?0.75:0.5)?2:1;
+        for(let i=0;i<_ftimes;i++){const t=pickTarget(opp);if(t){const cr=applyCrit(applyRate(baseDmg(me.bu,t.to,me.hp),156),me);const a=dealDmg(st,t,cr.val,me,isSelf,true,false);addLog(st,logSide,`  風林火山【火】(${me.name}→${t.name}) 兵刃[${a.toLocaleString()}]${cr.label}（残${t.hp.toLocaleString()}）${st._lastMods||''}`);st._lastMods='';}}
+      } else {
+        allies.filter(a=>a.hp>0).slice(0,_furinCnt).forEach(a=>{a._furinDefBuf=(a._furinDefBuf||0)+0.22;a._furinDefBufT=Math.max(a._furinDefBufT||0,1);});
+        addLog(st,logSide,`  風林火山【山】(${me.name}): 友軍${_furinCnt}名 兵刃被ダメ-22%(1T)`);
       }
     }
 
