@@ -58,7 +58,7 @@ function applyKiryaku(dmg, me, st=null, isSelf=true) {
       me._nanaFired = true;
       const isConfused = (me.confused||0) > 0;
       const targets = isConfused
-        ? [...st.ally,...st.enemy].filter(o=>o.hp>0).sort(()=>Math.random()-0.5)
+        ? [...st.ally,...st.enemy].filter(o=>o.hp>0).sort(()=>Math.random()-0.5).slice(0, 3)
         : (isSelf ? st.enemy : st.ally).filter(o=>o.hp>0);
       targets.forEach(t => {
         const d = applyRate(baseDmg(me.chi, t.chi, me.hp), 120, me.chi, true);
