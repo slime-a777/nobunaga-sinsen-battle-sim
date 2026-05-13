@@ -347,7 +347,7 @@ function processTurn(st, advMult) {
         }
         const _preHP = tgt.hp;
         const fin = dealDmg(st, tgt, Math.round(dmgBase * rand4()), me, isSelf, true);
-        // 表裏比興リアクション: 混乱対象の初回通常攻撃で発動
+        // 表裏比興リアクション: 混乱対象の初回通常攻撃で発動（ログは攻撃ログの後に出力）
         // 敵軍(A)攻撃→攻撃されたAの武将(tgt)を回復90% / 自軍誤爆(B)→攻撃されたBの武将(tgt)に計略90%
         if (me._hyouriReaction && !me._hyouriReaction.used) {
           me._hyouriReaction.used = true;
@@ -360,13 +360,19 @@ function processTurn(st, advMult) {
               const base = baseDmg(caster.chi, tgt.chi, caster.hp);
               const d = applyRate(base, 90, caster.chi, true);
               const actualDmg = dealDmg(st, tgt, d, caster, casterIsSelf, false, true);
-              if (actualDmg > 0) { addLog(st, hyouriLogS, `  表裏比興(${caster.name}→${tgt.name}): 混乱後 自軍誤爆→計略[${actualDmg.toLocaleString()}]（残${tgt.hp.toLocaleString()}）${st._lastMods||''}`); st._lastMods = ''; }
+              if (actualDmg > 0) {
+                const _hyouriMsg = `  表裏比興(${caster.name}→${tgt.name}): 混乱後 自軍誤爆→計略[${actualDmg.toLocaleString()}]（残${tgt.hp.toLocaleString()}）${st._lastMods||''}`;
+                st._lastMods = '';
+                (st._pendingPostAttackLogs = st._pendingPostAttackLogs||[]).push({cls: hyouriLogS, msg: _hyouriMsg});
+              }
             } else {
               // 混乱後も敵軍を攻撃した → 攻撃されたAの武将(tgt)を回復90%
               const tgtSide = casterIsSelf ? 'ally' : 'enemy';
               const h = applyHealRate(caster.hp, caster.chi, 90);
               const { healed } = applyHeal(tgt, h, st, tgtSide);
-              if (healed > 0) addLog(st, 'log-heal', `  表裏比興(${caster.name}): 混乱後 敵軍攻撃→${tgt.name}回復+${healed.toLocaleString()}（残${tgt.hp.toLocaleString()}）`);
+              if (healed > 0) {
+                (st._pendingPostAttackLogs = st._pendingPostAttackLogs||[]).push({cls: 'log-heal', msg: `  表裏比興(${caster.name}): 混乱後 敵軍攻撃→${tgt.name}回復+${healed.toLocaleString()}（残${tgt.hp.toLocaleString()}）`});
+              }
             }
           }
         }
