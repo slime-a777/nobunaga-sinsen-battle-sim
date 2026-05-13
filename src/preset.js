@@ -27,6 +27,14 @@ function readFormation() {
       });
     });
   });
+  f.config = {
+    allyTroopLv:       parseInt(document.getElementById('allyTroopLv')?.value)  || 0,
+    enemyTroopLv:      parseInt(document.getElementById('enemyTroopLv')?.value) || 0,
+    allyFactionMatch:  document.getElementById('allyFactionMatch')?.checked  || false,
+    allyKamonMatch:    document.getElementById('allyKamonMatch')?.checked    || false,
+    enemyFactionMatch: document.getElementById('enemyFactionMatch')?.checked || false,
+    enemyKamonMatch:   document.getElementById('enemyKamonMatch')?.checked   || false,
+  };
   return f;
 }
 
@@ -67,6 +75,17 @@ function applyFormation(formation, side = 'both') {
       onAttrPtChange(s, idx);
     });
   });
+  if (side === 'both' && formation.config) {
+    const cfg = formation.config;
+    const setChk = (id, val) => { const el = document.getElementById(id); if (el) el.checked = !!val; };
+    const setNum = (id, val) => { const el = document.getElementById(id); if (el) el.value = val != null ? val : 0; };
+    setNum('allyTroopLv',  cfg.allyTroopLv);
+    setNum('enemyTroopLv', cfg.enemyTroopLv);
+    setChk('allyFactionMatch',  cfg.allyFactionMatch);
+    setChk('allyKamonMatch',    cfg.allyKamonMatch);
+    setChk('enemyFactionMatch', cfg.enemyFactionMatch);
+    setChk('enemyKamonMatch',   cfg.enemyKamonMatch);
+  }
 }
 
 // localStorage からプリセット一覧を取得
