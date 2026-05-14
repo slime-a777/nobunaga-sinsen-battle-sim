@@ -2386,8 +2386,11 @@ function execCommand(st, me, isSelf, isTaisho=false) {
         opp.filter(o=>o.hp>0).slice(0,2).forEach(t=>{ t._shintyo = 3; t._shintyo_chi = me.chi; });
         addLog(st,'log-ctrl',`  深慮遠謀(${me.name}): 敵2名 与ダメ-28%(3T)`);
       } else if (sk.name==='知者楽水') {
-        allies.filter(a=>a.hp>0).slice(0,2).forEach(a=>{ a._chiryaku = 3; a._chiryaku_to = me.to; });
-        addLog(st,'log-buff',`  知者楽水(${me.name}): 自軍2名 被ダメ-24%(3T)`);
+        // 自軍全体で「知略>武勇」の武将が多いか多数決で判定
+        const _aliveAll = allies.filter(a=>a.hp>0);
+        const _chiMajority = _aliveAll.filter(a=>(a.chi||100)>(a.bu||100)).length * 2 > _aliveAll.length;
+        _aliveAll.slice(0,2).forEach(a=>{ a._chiryaku = 3; a._chiryaku_to = me.to; a._chiryaku_chiHigher = _chiMajority; });
+        addLog(st,'log-buff',`  知者楽水(${me.name}): 自軍2名 被ダメ軽減(${_chiMajority?'兵刃24%・計略18%':'計略24%・兵刃18%'}・統率依存)+与ダメ-5%(3T)`);
       } else if (sk.name==='気勢衝天') {
         st.kiseiSide = isSelf ? 'ally' : 'enemy';
         st.kiseiTurns = 4;
