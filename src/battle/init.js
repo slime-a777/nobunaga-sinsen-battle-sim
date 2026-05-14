@@ -34,10 +34,15 @@ function initUnit(b) {
   });
   // kyuyoRate初期化
   let kyuyoRate = 0;
+  let _teppoMonkKyuyo = false;
   allSenpo.forEach(s => {
     if (s.name === '按甲休兵') kyuyoRate = Math.max(kyuyoRate, 1.40);
     if (s.name === '休養') kyuyoRate = Math.max(kyuyoRate, 1.00);
-    if (s.name === '鉄砲僧兵') kyuyoRate = Math.max(kyuyoRate, 0.48); // T1/2/5/6のみ（turn.jsで制御）
+    if (s.name === '鉄砲僧兵') {
+      toBonus += 12; chiBonus += 12;
+      kyuyoRate = Math.max(kyuyoRate, 0.48);
+      _teppoMonkKyuyo = true;
+    }
   });
   return {
     ...b, hp: b.maxHp, injured: 0, dead: 0, nanaCnt: 0, _nanaFired: false, tesseki: 0,
@@ -74,6 +79,7 @@ function initUnit(b) {
     kaiseiDepStat: 0,       // 回生依存stat値（0=対象のchi使用）
     hajiRate: 0,            // 破陣ダメ増加率
     kyuyoRate,              // 休養確率（毎T確率で回復）
+    _teppoMonkKyuyo,        // 鉄砲僧兵フラグ（T1/2/5/6のみ休養発動）
     prepName: null,         // 準備中のスロット戦法名
     prepFixed: false,       // 固有戦法の準備中フラグ
     critRate: Math.min(critRate, 1.0), critBonus,

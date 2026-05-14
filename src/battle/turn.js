@@ -891,6 +891,8 @@ function processTurn(st, advMult) {
   ['ally','enemy'].forEach(side => {
     st[side].forEach(me => {
       if (me.hp > 0 && (me.kyuyoRate||0) > 0) {
+        // 鉄砲僧兵: T1/2/5/6のみ発動
+        if (me._teppoMonkKyuyo && ![1,2,5,6].includes(st.turn)) return;
         if (Math.random() < me.kyuyoRate) {
           const h = applyHealRate(me.hp, me.chi, 60);
           const {healed:_ah, remainHp:_rh} = applyHeal(me, h, st, side);
