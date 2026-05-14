@@ -84,12 +84,13 @@ function dealDmg(st, target, dmg, attacker, attackerIsSelf, isMelee=false, isChi
       _atkDebufRates.push(r); _atkModLabels.push(`一領具足防御-${Math.round(r*100)}%`);
     }
   }
-  // 知者楽水防御（統率依存: 知略>武勇なら兵刃24%・計略18%、武勇>=知略なら計略24%・兵刃18%）
+  // 知者楽水防御（統率依存: 発動時の自軍多数決で決定した _chiryaku_chiHigher フラグを参照）
+  // 知略>武勇の武将が多い場合: 兵刃24%・計略18%、そうでない場合: 計略24%・兵刃18%
   if (target._chiryaku > 0) {
     const _cScale = statScale(target._chiryaku_to||100);
     const r24 = 0.24 * _cScale;
     const r18 = 0.18 * _cScale;
-    const _chiHigher = (target.chi||100) > (target.bu||100);
+    const _chiHigher = target._chiryaku_chiHigher;
     if (isMelee) {
       const r = _chiHigher ? r24 : r18;
       _atkDebufRates.push(r); _atkModLabels.push(`知者楽水兵刃防御-${Math.round(r*100)}%`);
