@@ -244,6 +244,8 @@ function processTurn(st, advMult) {
 
     // 電光雷轟の1ターン1回制限フラグをリセット
     me._denkaiDone = false;
+    // 武田之赤備: 会心フラグをリセット（毎ターン行動開始時）
+    me._critThisTurn = false;
 
     // 威圧チェック（能動・通常攻撃・突撃のみ不能。受動・指揮は準備期間として発動済み）
     let _skipAction = false;
@@ -349,6 +351,7 @@ function processTurn(st, advMult) {
         }
         if (effectiveCritRate > 0 && Math.random() < effectiveCritRate) {
           dmgBase *= (1 + (me.critBonus||0.5)); critLabel = ' ★会心';
+          me._critThisTurn = true;
         }
         const _preHP = tgt.hp;
         const fin = dealDmg(st, tgt, Math.round(dmgBase * rand4()), me, isSelf, true);
@@ -916,6 +919,8 @@ function processTurn(st, advMult) {
       if (me._chiryaku > 0) me._chiryaku--;
       if (me._kichoDebuf > 0) me._kichoDebuf--;
       if ((me._jubaiT||0) > 0) { me._jubaiT--; if (me._jubaiT <= 0) { me._jubai = 0; me._jubaiT = 0; } }
+      if ((me._daichiBuDebufT||0) > 0) { me._daichiBuDebufT--; if (me._daichiBuDebufT <= 0) { me._daichiBuDebuf = 0; } }
+      if ((me._nouShaChiDebufT||0) > 0) { me._nouShaChiDebufT--; if (me._nouShaChiDebufT <= 0) { me._nouShaChiDebuf = 0; } }
       if (me._hyouriReaction) {
         if (me._hyouriReaction.used) { me._hyouriReaction = null; }
         else if (--me._hyouriReaction.turnsLeft <= 0) { me._hyouriReaction = null; }
@@ -1037,7 +1042,18 @@ function processTurn(st, advMult) {
         me._sakkoT--;
         if (me._sakkoT <= 0) me.spd = Math.max(0, (me.spd||100) - 200);
       }
+      // 掃疑平乱: 速度+20%バフのタイマー管理
+      if ((me._souheiSpdT||0) > 0) {
+        me._souheiSpdT--;
+        if (me._souheiSpdT <= 0 && (me._souheiSpdBoost||0) > 0) {
+          me.spd = Math.max(0, (me.spd||100) - me._souheiSpdBoost);
+          addLog(st, 'log-info', `  掃疑平乱速度バフ消失(${me.name}): 速度-${me._souheiSpdBoost}（現在${Math.round(me.spd)}）`);
+          me._souheiSpdBoost = 0;
+        }
+      }
       if (me._sankakuMarked) me._sankakuMarked = false;
+      // 境目奮戦等: 回復効果低下タイマー
+      if ((me._healReduceT||0) > 0) { me._healReduceT--; if (me._healReduceT <= 0) { me._healReduceRate = 0; } }
       // 一触即発・統率デバフタイマー
       if ((me._toDebufT||0) > 0) {
         me._toDebufT--;

@@ -220,6 +220,14 @@ function dealDmg(st, target, dmg, attacker, attackerIsSelf, isMelee=false, isChi
   if ((target._jubai||0) > 0) {
     _atkBuffRates.push(target._jubai); _atkModLabels.push(`十面埋伏+${Math.round(target._jubai*100)}%`);
   }
+  // 大智不智: 防御側の兵刃被ダメ+20%（2T）
+  if (isMelee && (target._daichiBuDebuf||0) > 0) {
+    _atkBuffRates.push(target._daichiBuDebuf); _atkModLabels.push(`大智不智+${Math.round(target._daichiBuDebuf*100)}%`);
+  }
+  // 嚢沙之計: 防御側の計略被ダメ+30%（2T）
+  if (isChi && (target._nouShaChiDebuf||0) > 0) {
+    _atkBuffRates.push(target._nouShaChiDebuf); _atkModLabels.push(`嚢沙之計+${Math.round(target._nouShaChiDebuf*100)}%`);
+  }
   // 特性: 防御側の被ダメ軽減（全体・兵刃・計略）
   if ((target.traitDefReduce||0) > 0) {
     _atkDebufRates.push(target.traitDefReduce); _atkModLabels.push(`特性被ダメ軽減-${Math.round(target.traitDefReduce*100)}%`);
@@ -238,9 +246,10 @@ function dealDmg(st, target, dmg, attacker, attackerIsSelf, isMelee=false, isChi
   if (isMelee && (target._furinDefBuf||0) > 0) {
     _atkDebufRates.push(target._furinDefBuf); _atkModLabels.push(`風林火山(山)-${Math.round(target._furinDefBuf*100)}%`);
   }
-  // 金城湯池: 自身被ダメ-15%（1T）
+  // 金城湯池: 自身被ダメ軽減（知略依存、最大30%）
   if ((target._kinjoDefT||0) > 0) {
-    _atkDebufRates.push(0.15); _atkModLabels.push(`金城湯池防御-15%`);
+    const _kinjoR = Math.min(0.30, 0.15 * statScale(target._kinjoChi||100));
+    _atkDebufRates.push(_kinjoR); _atkModLabels.push(`金城湯池防御-${Math.round(_kinjoR*100)}%`);
   }
   // 勇志不抜: 被ダメ-20%（簡略化: 肩代わりは省略）
   if ((target._yuushiBeiT||0) > 0) {
@@ -517,7 +526,10 @@ function applyDoTDmg(st, target, dmg, targetIsSelf, isMelee=false, isChi=true) {
 // 戻り値: { healed: 回復量, remainHp: 回復後のHP }
 function applyHeal(target, h, st=null, side=null) {
   if (target.healBlock) return { healed: 0, remainHp: target.hp };
-  const healable = Math.min(h, target.injured || 0);
+  // 境目奮戦等: 回復効果低下
+  const _reduceRate = target._healReduceRate || 0;
+  const effectiveH = _reduceRate > 0 ? Math.round(h * (1 - _reduceRate)) : h;
+  const healable = Math.min(effectiveH, target.injured || 0);
   if (healable <= 0) return { healed: 0, remainHp: target.hp };
   target.injured -= healable;
   target.hp = Math.min(target.maxHp - (target.dead || 0), target.hp + healable);
