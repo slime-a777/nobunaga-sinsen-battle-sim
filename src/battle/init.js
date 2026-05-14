@@ -32,12 +32,11 @@ function initUnit(b) {
     if (s.name === '百錬成鋼') { buBonus+=35; chiBonus+=35; toBonus+=35; spdBonus+=35; }
     if (s.name === '奮起') { buBonus+=25; spdBonus+=25; }
   });
-  // kyuyoRate初期化
+  // kyuyoRate初期化（鉄砲僧兵は全軍効果のためinitStateで処理）
   let kyuyoRate = 0;
   allSenpo.forEach(s => {
     if (s.name === '按甲休兵') kyuyoRate = Math.max(kyuyoRate, 1.40);
     if (s.name === '休養') kyuyoRate = Math.max(kyuyoRate, 1.00);
-    if (s.name === '鉄砲僧兵') kyuyoRate = Math.max(kyuyoRate, 0.48); // T1/2/5/6のみ（turn.jsで制御）
   });
   return {
     ...b, hp: b.maxHp, injured: 0, dead: 0, nanaCnt: 0, _nanaFired: false, tesseki: 0,
@@ -208,6 +207,18 @@ function initState(build) {
       t.traitBuDefReduce = (t.traitBuDefReduce || 0) + reduce;
     });
     addLog(st,'log-buff',`  僧兵(開戦前): ${side==='ally'?'味方':'敵'}全軍兵刃被ダメ-${Math.round(reduce*100)}%付与`);
+  });
+
+  // 鉄砲僧兵：自軍全体に統率+12・知略+12、T1/2/5/6に休養48%（統率依存）付与
+  ['ally','enemy'].forEach(side => {
+    const holder = st[side].find(b => b.slots?.some(s => s?.name === '鉄砲僧兵'));
+    if (!holder) return;
+    st[side].forEach(t => {
+      t.to  = (t.to  || 100) + 12;
+      t.chi = (t.chi || 100) + 12;
+      t._teppoMonkKyuyo = 0.48;
+    });
+    addLog(st,'log-buff',`  鉄砲僧兵(開戦前): ${side==='ally'?'味方':'敵'}全軍統率+12・知略+12・T1/2/5/6に休養48%付与`);
   });
 
   // 夜叉美濃（原虎胤）: 兵刃・計略被ダメ-35%常時

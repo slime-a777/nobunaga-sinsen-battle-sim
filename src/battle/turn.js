@@ -900,6 +900,21 @@ function processTurn(st, advMult) {
     });
   });
 
+  // 鉄砲僧兵: T1/2/5/6に全軍休養48%（統率依存）
+  if ([1,2,5,6].includes(st.turn)) {
+    ['ally','enemy'].forEach(side => {
+      st[side].forEach(me => {
+        if (me.hp > 0 && (me._teppoMonkKyuyo||0) > 0) {
+          if (Math.random() < me._teppoMonkKyuyo) {
+            const h = applyHealRate(me.hp, me.to, 60);
+            const {healed:_ah, remainHp:_rh} = applyHeal(me, h, st, side);
+            if (_ah > 0) addLog(st, 'log-heal', `  鉄砲僧兵・休養(${me.name}) +${_ah.toLocaleString()}（残${_rh.toLocaleString()}）`);
+          }
+        }
+      });
+    });
+  }
+
   // デバフターン減少（行動開始時に消化するもの以外）
   ['ally','enemy'].forEach((side, _si) => {
     st[side].forEach((me, _mi) => {
