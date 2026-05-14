@@ -84,10 +84,26 @@ function dealDmg(st, target, dmg, attacker, attackerIsSelf, isMelee=false, isChi
       _atkDebufRates.push(r); _atkModLabels.push(`一領具足防御-${Math.round(r*100)}%`);
     }
   }
-  // 知者楽水防御（統率依存: 被ダメ-24%）
+  // 知者楽水防御（統率依存: 知略>武勇なら兵刃24%・計略18%、武勇>=知略なら計略24%・兵刃18%）
   if (target._chiryaku > 0) {
-    const r = 0.24 * statScale(target._chiryaku_to||100);
-    _atkDebufRates.push(r); _atkModLabels.push(`知者楽水防御-${Math.round(r*100)}%`);
+    const _cScale = statScale(target._chiryaku_to||100);
+    const r24 = 0.24 * _cScale;
+    const r18 = 0.18 * _cScale;
+    const _chiHigher = (target.chi||100) > (target.bu||100);
+    if (isMelee) {
+      const r = _chiHigher ? r24 : r18;
+      _atkDebufRates.push(r); _atkModLabels.push(`知者楽水兵刃防御-${Math.round(r*100)}%`);
+    } else if (isChi) {
+      const r = _chiHigher ? r18 : r24;
+      _atkDebufRates.push(r); _atkModLabels.push(`知者楽水計略防御-${Math.round(r*100)}%`);
+    } else {
+      const r = _chiHigher ? r24 : r18;
+      _atkDebufRates.push(r); _atkModLabels.push(`知者楽水防御-${Math.round(r*100)}%`);
+    }
+  }
+  // 知者楽水 与ダメ-5%（バフ対象者自身の与ダメが5%低下）
+  if ((attacker._chiryaku||0) > 0) {
+    _atkDebufRates.push(0.05); _atkModLabels.push(`知者楽水与ダメ-5%`);
   }
   // 深慮遠謀: 攻撃者に与ダメ-28%（知略依存）
   if (attacker._shintyo > 0) {

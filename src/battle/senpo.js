@@ -2387,7 +2387,7 @@ function execCommand(st, me, isSelf, isTaisho=false) {
         addLog(st,'log-ctrl',`  深慮遠謀(${me.name}): 敵2名 与ダメ-28%(3T)`);
       } else if (sk.name==='知者楽水') {
         allies.filter(a=>a.hp>0).slice(0,2).forEach(a=>{ a._chiryaku = 3; a._chiryaku_to = me.to; });
-        addLog(st,'log-buff',`  知者楽水(${me.name}): 自軍2名 被ダメ-24%(3T)`);
+        addLog(st,'log-buff',`  知者楽水(${me.name}): 自軍2名 被ダメ軽減(知略>武勇→兵刃24%・計略18%、武勇>=知略→計略24%・兵刃18%)+与ダメ-5%(3T)`);
       } else if (sk.name==='気勢衝天') {
         st.kiseiSide = isSelf ? 'ally' : 'enemy';
         st.kiseiTurns = 4;
