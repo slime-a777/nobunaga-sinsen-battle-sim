@@ -220,6 +220,10 @@ function dealDmg(st, target, dmg, attacker, attackerIsSelf, isMelee=false, isChi
   if ((target._jubai||0) > 0) {
     _atkBuffRates.push(target._jubai); _atkModLabels.push(`十面埋伏+${Math.round(target._jubai*100)}%`);
   }
+  // 大智不智: 防御側の兵刃被ダメ+20%（2T）
+  if (isMelee && (target._daichiBuDebuf||0) > 0) {
+    _atkBuffRates.push(target._daichiBuDebuf); _atkModLabels.push(`大智不智+${Math.round(target._daichiBuDebuf*100)}%`);
+  }
   // 特性: 防御側の被ダメ軽減（全体・兵刃・計略）
   if ((target.traitDefReduce||0) > 0) {
     _atkDebufRates.push(target.traitDefReduce); _atkModLabels.push(`特性被ダメ軽減-${Math.round(target.traitDefReduce*100)}%`);

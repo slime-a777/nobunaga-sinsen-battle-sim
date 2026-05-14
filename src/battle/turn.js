@@ -916,6 +916,7 @@ function processTurn(st, advMult) {
       if (me._chiryaku > 0) me._chiryaku--;
       if (me._kichoDebuf > 0) me._kichoDebuf--;
       if ((me._jubaiT||0) > 0) { me._jubaiT--; if (me._jubaiT <= 0) { me._jubai = 0; me._jubaiT = 0; } }
+      if ((me._daichiBuDebufT||0) > 0) { me._daichiBuDebufT--; if (me._daichiBuDebufT <= 0) { me._daichiBuDebuf = 0; } }
       if (me._hyouriReaction) {
         if (me._hyouriReaction.used) { me._hyouriReaction = null; }
         else if (--me._hyouriReaction.turnsLeft <= 0) { me._hyouriReaction = null; }

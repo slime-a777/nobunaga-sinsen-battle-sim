@@ -118,11 +118,25 @@ function execFixed(st, me, isSelf, advMult, isTaisho=false, typeFilter=null) {
     }
   }
 
-  // 水の如し（黒田官兵衛）: 60%で敵1体に計略88%（1〜2回）。計略攻撃ごとに奇策+5%
+  // 水の如し（黒田官兵衛）: 毎T行動前に48%（知略依存）で奇策+5%獲得（最大8回）
+  // 毎T行動前に60%（大将技+15%）で敵1体に計略88%（1〜2回）
   if (f.name === '水の如し') {
-    if (Math.random() < 0.60) {
+    const sl = isSelf ? '[自]' : '[敵]';
+    // 奇策積み上げ: 48%（知略依存）、最大8スタック
+    const maxKiryakuStack = 8;
+    const curStack = me._mizuKiryakuStack || 0;
+    if (curStack < maxKiryakuStack) {
+      const kirProb = Math.min(1.0, 0.48 * statScale(me.chi));
+      if (Math.random() < kirProb) {
+        me._mizuKiryakuStack = curStack + 1;
+        me.kiryakuRate = Math.min(1.0, (me.kiryakuRate || 0) + 0.05);
+        addLog(st, isSelf?'log-ally':'log-enemy', `  水の如し(${me.name}) 奇策+5%獲得（${me._mizuKiryakuStack}スタック・計${Math.round(me.kiryakuRate*100)}%）`);
+      }
+    }
+    // 計略攻撃: 60%（大将技+15%）で敵1体に計略88%×1〜2回
+    const dmgProb = isTaisho ? 0.75 : 0.60;
+    if (Math.random() < dmgProb) {
       const times = Math.random()<0.5?1:2;
-      const sl = isSelf ? '[自]' : '[敵]';
       for (let t=0;t<times;t++){
         const tgt = pickTarget(opp);
         if (!tgt) break;
@@ -134,9 +148,6 @@ function execFixed(st, me, isSelf, advMult, isTaisho=false, typeFilter=null) {
         addLog(st, isSelf?'log-ally':'log-enemy', `  ${sl} 水の如し(${me.name}→${tgt.name}) 計略[${actualDmg.toLocaleString()}]${kr.label}（残${tgt.hp.toLocaleString()}）${st._lastMods||''}`);
         st._lastMods = '';
         if (st.hiyokuSide && st.hiyokuSide !== (isSelf?'ally':'enemy')) st.hiyokuAccum += actualDmg*0.75;
-        // 計略攻撃ごとに奇策確率+5%
-        me.kiryakuRate = Math.min(1.0, (me.kiryakuRate || 0) + 0.05);
-        addLog(st, isSelf?'log-ally':'log-enemy', `  水の如し(${me.name}) 計略攻撃→奇策+5%（計${Math.round(me.kiryakuRate*100)}%）`);
       }
     }
   }
@@ -157,11 +168,34 @@ function execFixed(st, me, isSelf, advMult, isTaisho=false, typeFilter=null) {
       });
     }
   }
-  // 相模の獅子（北条氏康）
+  // 相模の獅子（北条氏康）自軍2〜3名に85%で鉄壁×2付与。鉄壁中の対象には代わりに計略178%
   else if (f.name === '相模の獅子') {
-    allies.filter(a=>a.hp>0).slice(0,2).forEach(a=>{
-      a.tesseki = (a.tesseki||0)+2;
-      addLog(st,'log-buff',`  相模の獅子(${a.name}) 鉄壁×2付与`);
+    const logS = isSelf ? 'log-ally' : 'log-enemy';
+    const cnt = Math.random() < 0.5 ? 2 : 3;
+    const prob = 0.85; // Lv10値
+    allies.filter(a=>a.hp>0).slice(0, cnt).forEach(a=>{
+      if ((a.tesseki||0) > 0) {
+        // 鉄壁中の場合: 代わりに敵1名に計略178%
+        const t = pickTarget(opp);
+        if (t) {
+          const base = baseDmg(me.chi, t.chi, me.hp);
+          const kr = applyKiryaku(applyRate(base, 178, me.chi, true), me, st, isSelf);
+          const actualDmg = dealDmg(st, t, kr.val, me, isSelf, false, true);
+          addLog(st, logS, `  [${isSelf?'自':'敵'}] 相模の獅子(${me.name}→${t.name}) 鉄壁中→計略[${actualDmg.toLocaleString()}]${kr.label}（残${t.hp.toLocaleString()}）${st._lastMods||''}`);
+          st._lastMods = '';
+        }
+      } else if (Math.random() < prob) {
+        a.tesseki = (a.tesseki||0) + 2;
+        addLog(st,'log-buff',`  相模の獅子(${a.name}) 鉄壁×2付与`);
+      } else {
+        addLog(st,'log-info',`  相模の獅子(${a.name}) 鉄壁付与失敗`);
+        // 大将技: 付与失敗時に回復40%
+        if (isTaisho) {
+          const h = applyHealRate(me.hp, me.chi, 40);
+          const {healed:_ah, remainHp:_rh} = applyHeal(a, h, st, isSelf?'ally':'enemy');
+          if (_ah > 0) addLog(st,'log-heal',`  相模の獅子・大将技(${a.name}) 失敗時回復+${_ah.toLocaleString()}（残${_rh.toLocaleString()}）`);
+        }
+      }
     });
   }
   // 地黄八幡（北条綱成）準備1T後 敵全体 兵刃174%＋封撃・無策（大将技：確率44%）
@@ -201,7 +235,7 @@ function execFixed(st, me, isSelf, advMult, isTaisho=false, typeFilter=null) {
       st._lastMods = '';
     });
   }
-  // 梟雄の計（松永久秀）準備1T後 敵2〜3名 計略128%＋55%で中毒・火傷
+  // 梟雄の計（松永久秀）準備1T後 敵2〜3名 計略128%＋55%で中毒（中毒中は疲弊に変更）・火傷
   else if (f.name === '梟雄の計') {
     const logS = isSelf ? 'log-ally' : 'log-enemy';
     const cnt = Math.random() < 0.5 ? 2 : 3;
@@ -213,12 +247,18 @@ function execFixed(st, me, isSelf, advMult, isTaisho=false, typeFilter=null) {
       addLog(st, logS, `  [${isSelf?'自':'敵'}] 梟雄の計(${me.name}→${t.name}) 計略[${actualDmg.toLocaleString()}]${kr.label}（残${t.hp.toLocaleString()}）${st._lastMods||''}`);
       st._lastMods = '';
       if (Math.random() < 0.55) {
-        tryCtrl(t, u=>{ u.chudokuT = Math.max(u.chudokuT||0, 2); u.chudokuPow = me.chi; u.chudokuRate = 96; u.chudokuKirRate = me.kiryakuRate||0; u.chudokuKirBonus = me.kiryakuBonus||0; }, '中毒', st);
-        addLog(st,'log-ctrl',`    中毒2T(96%/T)付与`);
+        // 中毒状態中の場合は疲弊に変更
+        if ((t.chudokuT||0) > 0) {
+          tryCtrl(t, u=>{ u.hibi = Math.max(u.hibi||0, 2); }, '疲弊', st);
+          addLog(st,'log-ctrl',`    梟雄の計: 中毒中→疲弊2T付与`);
+        } else {
+          tryCtrl(t, u=>{ u.chudokuT = Math.max(u.chudokuT||0, 2); u.chudokuPow = me.chi; u.chudokuRate = 96; u.chudokuKirRate = me.kiryakuRate||0; u.chudokuKirBonus = me.kiryakuBonus||0; }, '中毒', st);
+          addLog(st,'log-ctrl',`    梟雄の計: 中毒2T(96%/T)付与`);
+        }
       }
       if (Math.random() < 0.55) {
         t._kaen = (t._kaen||0) + 2; t._kaenRate = 96;
-        addLog(st,'log-ctrl',`    火傷2T(96%/T)付与`);
+        addLog(st,'log-ctrl',`    梟雄の計: 火傷2T(96%/T)付与`);
       }
     });
   }
@@ -1520,8 +1560,11 @@ function execSlot(st, sk, me, isSelf, advMult, typeFilter=null) {
     addLog(st,'log-buff',`  縦横馳突(${me.name}) 連撃＋封撃耐性1T`);
   } else if (n==='大智不智') {
     opp.filter(o=>o.hp>0).slice(0,2).forEach(t=>{
-      tryCtrl(t, u=>{ u.shochinT = Math.max(u.shochinT||0, 3); u.shochinPow = me.chi; u.shochinRate = 104; u.shochinKirRate = me.kiryakuRate||0; u.shochinKirBonus = me.kiryakuBonus||0; }, '消沈', st);
-      addLog(st,'log-ctrl',`  大智不智(${t.name}) 消沈3T(104%/T)付与`);
+      tryCtrl(t, u=>{ u.shochinT = Math.max(u.shochinT||0, 2); u.shochinPow = me.chi; u.shochinRate = 104; u.shochinKirRate = me.kiryakuRate||0; u.shochinKirBonus = me.kiryakuBonus||0; }, '消沈', st);
+      // 兵刃被ダメ+20%（2T）
+      t._daichiBuDebuf = (t._daichiBuDebuf||0) + 0.20;
+      t._daichiBuDebufT = Math.max(t._daichiBuDebufT||0, 2);
+      addLog(st,'log-ctrl',`  大智不智(${t.name}) 消沈2T(104%/T)+兵刃被ダメ+20%(2T)付与`);
     });
   } else if (n==='紅蓮の炎') {
     opp.filter(o=>o.hp>0).forEach(t=>{
