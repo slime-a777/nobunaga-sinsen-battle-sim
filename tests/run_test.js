@@ -492,7 +492,7 @@ test('回天転運 — 弱体化浄化 + HP回復', () => {
 // ── カテゴリ 5: 固有戦法チェック（代表的な武将）───────
 section('固有戦法チェック');
 
-test('水の如し（黒田官兵衛）— 計略88%が発動', () => {
+test('水の如し（黒田官兵衛）— 計略88%が発動・奇策スタック積み上げ', () => {
   const me  = makeUnit({ name: '黒田官兵衛', chi: 150,
                           fixed: { name: '水の如し', type: 'passive', prob: 1.0 } });
   const tgt = makeUnit({ name: '標的', chi: 150 });
@@ -500,14 +500,17 @@ test('水の如し（黒田官兵衛）— 計略88%が発動', () => {
   resetDmgLog();
   // 受動型なので typeFilter=null で呼ぶ
   _withRandom(0, () => { execFixed(st, me, true, 1.0, false, null); });
-  // 60%確率で発動するが _fixedRandom=0 なので必ず発動
+  // 60%確率で発動するが random=0 なので必ず発動
   assert(_dmgLog.some(d => d.isChi), '水の如し: 計略ダメージが記録されていない');
   const hit = _dmgLog.find(d => d.isChi);
   const base = baseDmg(me.chi, tgt.chi, me.hp);
-  const lo   = Math.round(base * 88/100 * 0.956 * 0.85);
-  const hi   = Math.round(base * 88/100 * 1.044 * 1.15);
+  // random=0 時は奇策スタック獲得後に奇策が発動する可能性があるため上限を1.5倍まで許容
+  const lo = Math.round(base * 88/100 * 0.956);
+  const hi = Math.round(base * 88/100 * 1.044 * 1.5);
   assert(hit.raw >= lo && hit.raw <= hi,
-    `水の如し: ダメージ ${hit.raw} が期待範囲 [${lo}, ${hi}] 外 (88%)`);
+    `水の如し: ダメージ ${hit.raw} が期待範囲 [${lo}, ${hi}] 外 (88%, 奇策1.5倍考慮)`);
+  // 奇策スタックが積み上がっていること
+  assert((me._mizuKiryakuStack || 0) >= 1, '水の如し: _mizuKiryakuStack が増加していない');
 });
 
 test('地黄八幡（北条綱成 固有）— 兵刃174%が全敵に', () => {
@@ -525,6 +528,61 @@ test('地黄八幡（北条綱成 固有）— 兵刃174%が全敵に', () => {
   const hi   = Math.round(base * 174/100 * 1.044 * 1.15);
   assert(hit.raw >= lo && hit.raw <= hi,
     `地黄八幡: ダメージ ${hit.raw} が期待範囲 [${lo}, ${hi}] 外 (174%)`);
+});
+
+test('嚢沙之計 — 計略被ダメ+30%(2T)が付与される', () => {
+  const me = makeUnit({ name: '付与者', chi: 150 });
+  const e1 = makeUnit({ name: '敵1' });
+  const e2 = makeUnit({ name: '敵2' });
+  const st = makeState([me], [e1, e2]);
+  _withRandom(0, () => { execSlot(st, SENPO_DB['嚢沙之計'], me, true, 1.0); });
+  assert((e1._nouShaChiDebuf || 0) > 0, '嚢沙之計: _nouShaChiDebuf が付与されていない');
+  assertEqual(e1._nouShaChiDebuf, 0.30, '嚢沙之計: _nouShaChiDebuf=0.30');
+  assertEqual(e1._nouShaChiDebufT, 2, '嚢沙之計: _nouShaChiDebufT=2');
+});
+
+test('電光石火 — 援護攻撃が実行される', () => {
+  const me   = makeUnit({ name: '攻撃者', bu: 150 });
+  const ally = makeUnit({ name: '友軍',   bu: 120 });
+  const e1   = makeUnit({ name: '敵1' });
+  const e2   = makeUnit({ name: '敵2' });
+  // 敵2名を用意: 主攻撃96%×2 + 援護96%×1 = 合計3ヒット
+  const st   = makeState([ally, me], [e1, e2]);
+  resetDmgLog();
+  _withRandom(0, () => { execSlot(st, SENPO_DB['電光石火'], me, true, 1.0); });
+  assert(_dmgLog.filter(d => d.isMelee).length >= 3, `電光石火: 援護攻撃含め計3ヒット以上期待 (実際: ${_dmgLog.filter(d=>d.isMelee).length})`);
+});
+
+test('掃疑平乱 — 5T以降の速度増加が相対値(+20%)かつ2T持続', () => {
+  const me   = makeUnit({ name: '戦闘者', spd: 100,
+                           fixed: { name: '掃疑平乱', type: 'active', prob: 1.0 } });
+  const ally = makeUnit({ name: '友軍',   spd: 120 });
+  const tgt  = makeUnit({ name: '敵' });
+  const st   = makeState([me, ally], [tgt]);
+  st.turn = 5;
+  _withRandom(0, () => { execFixed(st, me, true, 1.0, false, ['active']); });
+  assertEqual(me.spd, 120, '掃疑平乱: 速度100+20%=120');
+  assert((me._souheiSpdT || 0) >= 2, '掃疑平乱: _souheiSpdT=2');
+  assert((me._souheiSpdBoost || 0) === 20, `掃疑平乱: _souheiSpdBoost=20 (実際: ${me._souheiSpdBoost})`);
+});
+
+test('帰蝶の舞 — 発動確率が知略依存(statScale)', () => {
+  // 知略=100(標準)と知略=200(高い)で発動確率が変わることを確認
+  const me100  = makeUnit({ name: '帰蝶(知略100)', chi: 100,
+                              fixed: { name: '帰蝶の舞', type: 'passive', prob: 1.0 } });
+  const me200  = makeUnit({ name: '帰蝶(知略200)', chi: 200,
+                              fixed: { name: '帰蝶の舞', type: 'passive', prob: 1.0 } });
+  const tgt = makeUnit({ name: '敵' });
+  const st1 = makeState([me100], [tgt]);
+  const st2 = makeState([me200], [tgt]);
+  st1.turn = 1; st2.turn = 1;
+  // random=0.45 で 知略100(prob=0.40)は不発、知略200(prob>0.40)は発動することを確認
+  let fired100 = false, fired200 = false;
+  _withRandom(0.45, () => { execFixed(st1, me100, true, 1.0, false, null); fired100 = (tgt._kichoDebuf||0) > 0; });
+  tgt._kichoDebuf = 0;
+  _withRandom(0.45, () => { execFixed(st2, me200, true, 1.0, false, null); fired200 = (tgt._kichoDebuf||0) > 0; });
+  assert(!fired100, '帰蝶の舞: 知略100でrandom=0.45は不発のはず');
+  assert(fired200,  '帰蝶の舞: 知略200でrandom=0.45は発動のはず(statScale適用)');
 });
 
 // ════════════════════════════════════════════

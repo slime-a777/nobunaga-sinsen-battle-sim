@@ -153,7 +153,7 @@ function execFixed(st, me, isSelf, advMult, isTaisho=false, typeFilter=null) {
   }
   // 帰蝶の舞（帰蝶）受動型：奇数Tに統率・知略デバフ、偶数Tに混乱
   else if (f.name === '帰蝶の舞') {
-    const prob = st.turn % 2 === 1 ? 0.40 : 0.38;
+    const prob = st.turn % 2 === 1 ? Math.min(1.0, 0.40 * statScale(me.chi)) : Math.min(1.0, 0.38 * statScale(me.chi));
     if (Math.random() < prob) {
       opp.filter(o=>o.hp>0).slice(0,2).forEach(t=>{
         if (st.turn % 2 === 1) {
@@ -416,9 +416,18 @@ function execFixed(st, me, isSelf, advMult, isTaisho=false, typeFilter=null) {
       addLog(st, 'log-buff', `  掃疑平乱: ${ally2.name} 乱舞78%(2T)付与`);
     }
     if (st.turn >= 5) {
-      const spdPrev = me.spd || 0;
-      me.spd = spdPrev + 20;
-      addLog(st, 'log-buff', `  掃疑平乱・5T以降: ${me.name} 速度 ${spdPrev}→${me.spd}(+20)`);
+      const spdBoost = Math.round((me.spd||100) * 0.20);
+      me.spd = (me.spd||100) + spdBoost;
+      me._souheiSpdBoost = (me._souheiSpdBoost||0) + spdBoost;
+      me._souheiSpdT = Math.max(me._souheiSpdT||0, 2);
+      addLog(st, 'log-buff', `  掃疑平乱・5T以降: ${me.name} 速度+${spdBoost}(+20%, 2T)`);
+      if (ally2) {
+        const spdBoost2 = Math.round((ally2.spd||100) * 0.20);
+        ally2.spd = (ally2.spd||100) + spdBoost2;
+        ally2._souheiSpdBoost = (ally2._souheiSpdBoost||0) + spdBoost2;
+        ally2._souheiSpdT = Math.max(ally2._souheiSpdT||0, 2);
+        addLog(st, 'log-buff', `  掃疑平乱・5T以降: ${ally2.name} 速度+${spdBoost2}(+20%, 2T)`);
+      }
     }
   }
   // 天下御免（前田慶次）通攻後、対象に兵刃188%。敵大将命中で混乱2T
@@ -599,9 +608,11 @@ function execFixed(st, me, isSelf, advMult, isTaisho=false, typeFilter=null) {
     }
   }
 
-  // 武田之赤備（山県昌景）passive: 25%で赤備え突撃 敵単体 兵刃138%＋統率デバフ2T
+  // 武田之赤備（山県昌景）passive: 25%（武勇依存）で赤備え突撃 敵単体 兵刃138%＋統率デバフ2T
+  // 会心ダメージを与えた場合は追加+25%
   else if (f.name === '武田之赤備') {
-    if (Math.random() < 0.25) {
+    const _baseProb = me._critThisTurn ? 0.50 : 0.25;
+    if (Math.random() < Math.min(1.0, _baseProb * statScale(me.bu))) {
       const logS = isSelf ? 'log-ally' : 'log-enemy';
       const t = pickTarget(opp);
       if (t) {
@@ -1488,7 +1499,9 @@ function execSlot(st, sk, me, isSelf, advMult, typeFilter=null) {
   } else if (n==='嚢沙之計') {
     opp.filter(o=>o.hp>0).slice(0,2).forEach(t=>{
       t.suikouT = 2; t.suikouRate = 102; t.suikouPower = me.chi; t.suikouKirRate = me.kiryakuRate||0; t.suikouKirBonus = me.kiryakuBonus||0;
-      addLog(st,'log-ctrl',`  嚢沙之計(${t.name}) 水攻め2T+計略被ダメ+30%`);
+      t._nouShaChiDebuf = (t._nouShaChiDebuf||0) + 0.30;
+      t._nouShaChiDebufT = Math.max(t._nouShaChiDebufT||0, 2);
+      addLog(st,'log-ctrl',`  嚢沙之計(${t.name}) 水攻め2T+計略被ダメ+30%(2T)`);
     });
   } else if (n==='霹靂一撃') {
     const t = pickTarget(opp);
@@ -1620,11 +1633,18 @@ function execSlot(st, sk, me, isSelf, advMult, typeFilter=null) {
       addLog(st,logSide,`  [${side}] 電光石火(${me.name}→${t.name}) 兵刃[${r.dmg.toLocaleString()}]${r.label}（残${t.hp.toLocaleString()}）${st._lastMods||''}`);
       st._lastMods = '';
     });
-    const a2 = allies.filter(a=>a.hp>0)[0];
+    const a2 = pickTarget(allies);
     if (a2) {
       a2.to = (a2.to||100) + 48;
       a2._dengkouToT = Math.max(a2._dengkouToT||0, 2);
       addLog(st,'log-buff',`  電光石火: ${a2.name} 統率+48(2T)`);
+      // 援護: 友軍が敵1名を攻撃
+      const engoTgt = pickTarget(opp);
+      if (engoTgt) {
+        const rE = meleeHit(baseDmg(a2.bu,engoTgt.to,a2.hp),96,engoTgt);
+        addLog(st,logSide,`  電光石火援護(${a2.name}→${engoTgt.name}) 兵刃[${rE.dmg.toLocaleString()}]${rE.label}（残${engoTgt.hp.toLocaleString()}）${st._lastMods||''}`);
+        st._lastMods = '';
+      }
     }
   } else if (n==='勇猛無比') {
     me.critRate = Math.min(1.0, (me.critRate||0) + 0.25);

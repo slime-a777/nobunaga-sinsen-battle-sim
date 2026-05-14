@@ -224,6 +224,10 @@ function dealDmg(st, target, dmg, attacker, attackerIsSelf, isMelee=false, isChi
   if (isMelee && (target._daichiBuDebuf||0) > 0) {
     _atkBuffRates.push(target._daichiBuDebuf); _atkModLabels.push(`大智不智+${Math.round(target._daichiBuDebuf*100)}%`);
   }
+  // 嚢沙之計: 防御側の計略被ダメ+30%（2T）
+  if (isChi && (target._nouShaChiDebuf||0) > 0) {
+    _atkBuffRates.push(target._nouShaChiDebuf); _atkModLabels.push(`嚢沙之計+${Math.round(target._nouShaChiDebuf*100)}%`);
+  }
   // 特性: 防御側の被ダメ軽減（全体・兵刃・計略）
   if ((target.traitDefReduce||0) > 0) {
     _atkDebufRates.push(target.traitDefReduce); _atkModLabels.push(`特性被ダメ軽減-${Math.round(target.traitDefReduce*100)}%`);
