@@ -83,11 +83,10 @@ function processTurn(st, advMult) {
       if (me.suikouT <= 0) { me.healBlock = false; addLog(st, 'log-info', `  水攻め解除(${me.name})`); }
       if (me.hp <= 0) continue;
     }
-    // 中毒（デフォルト85%/T、chudokuRateで上書き可）
+    // 中毒（レートは付与戦法ごとに設定: chudokuRate）
     if ((me.chudokuT||0) > 0) {
       const pow = me.chudokuPow || 150;
-      const _chudokuRate = me.chudokuRate || 85;
-      let d = applyRate(baseDmg(pow, me.chi, me.hp), _chudokuRate, pow, true);
+      let d = applyRate(baseDmg(pow, me.chi, me.hp), me.chudokuRate, pow, true);
       let _chudokuLabel = '';
       if ((me.chudokuKirRate||0) > 0 && Math.random() < me.chudokuKirRate) { d = Math.round(d * (1.5 + (me.chudokuKirBonus||0))); _chudokuLabel = '⚡奇策'; }
       me.injured = (me.injured||0) + Math.round(d*0.9);
@@ -108,11 +107,10 @@ function processTurn(st, advMult) {
       addLog(st, 'log-ctrl', `  旋乾転坤恐慌継続(${me.name}) [${_kyokouDmg.toLocaleString()}]（残${me.hp.toLocaleString()}）`);
       if (me.hp <= 0) continue;
     }
-    // 消沈（デフォルト104%/T、shochinRateで上書き可）
+    // 消沈（レートは付与戦法ごとに設定: shochinRate）
     if ((me.shochinT||0) > 0) {
       const pow = me.shochinPow || 150;
-      const _shochinRate = me.shochinRate || 104;
-      let d = applyRate(baseDmg(pow, me.chi, me.hp), _shochinRate, pow, true);
+      let d = applyRate(baseDmg(pow, me.chi, me.hp), me.shochinRate, pow, true);
       let _shochinLabel = '';
       if ((me.shochinKirRate||0) > 0 && Math.random() < me.shochinKirRate) { d = Math.round(d * (1.5 + (me.shochinKirBonus||0))); _shochinLabel = '⚡奇策'; }
       me.injured = (me.injured||0) + Math.round(d*0.9);

@@ -213,8 +213,8 @@ function execFixed(st, me, isSelf, advMult, isTaisho=false, typeFilter=null) {
       addLog(st, logS, `  [${isSelf?'自':'敵'}] 梟雄の計(${me.name}→${t.name}) 計略[${actualDmg.toLocaleString()}]${kr.label}（残${t.hp.toLocaleString()}）${st._lastMods||''}`);
       st._lastMods = '';
       if (Math.random() < 0.55) {
-        tryCtrl(t, u=>{ u.chudokuT = Math.max(u.chudokuT||0, 2); u.chudokuPow = me.chi; u.chudokuKirRate = me.kiryakuRate||0; u.chudokuKirBonus = me.kiryakuBonus||0; }, '中毒', st);
-        addLog(st,'log-ctrl',`    中毒2T付与`);
+        tryCtrl(t, u=>{ u.chudokuT = Math.max(u.chudokuT||0, 2); u.chudokuPow = me.chi; u.chudokuRate = 96; u.chudokuKirRate = me.kiryakuRate||0; u.chudokuKirBonus = me.kiryakuBonus||0; }, '中毒', st);
+        addLog(st,'log-ctrl',`    中毒2T(96%/T)付与`);
       }
       if (Math.random() < 0.55) {
         t._kaen = (t._kaen||0) + 2; t._kaenRate = 96;
@@ -1520,8 +1520,8 @@ function execSlot(st, sk, me, isSelf, advMult, typeFilter=null) {
     addLog(st,'log-buff',`  縦横馳突(${me.name}) 連撃＋封撃耐性1T`);
   } else if (n==='大智不智') {
     opp.filter(o=>o.hp>0).slice(0,2).forEach(t=>{
-      tryCtrl(t, u=>{ u.shochinT = Math.max(u.shochinT||0, 3); u.shochinPow = me.chi; u.shochinKirRate = me.kiryakuRate||0; u.shochinKirBonus = me.kiryakuBonus||0; }, '消沈', st);
-      addLog(st,'log-ctrl',`  大智不智(${t.name}) 消沈3T（知略依存継続ダメ）付与`);
+      tryCtrl(t, u=>{ u.shochinT = Math.max(u.shochinT||0, 3); u.shochinPow = me.chi; u.shochinRate = 104; u.shochinKirRate = me.kiryakuRate||0; u.shochinKirBonus = me.kiryakuBonus||0; }, '消沈', st);
+      addLog(st,'log-ctrl',`  大智不智(${t.name}) 消沈3T(104%/T)付与`);
     });
   } else if (n==='紅蓮の炎') {
     opp.filter(o=>o.hp>0).forEach(t=>{
