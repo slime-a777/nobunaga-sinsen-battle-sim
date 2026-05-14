@@ -60,10 +60,9 @@ function processTurn(st, advMult) {
       let d = applyRate(baseDmg(me.chi || 150, me.chi, me.hp), _kaenRate, me.chi || 150, true);
       let _kaenLabel = '';
       if ((me._kaenKirRate||0) > 0 && Math.random() < me._kaenKirRate) { d = Math.round(d * (1.5 + (me._kaenKirBonus||0))); _kaenLabel = '⚡奇策'; }
-      me.injured = (me.injured||0) + Math.round(d*0.9);
-      me.dead    = (me.dead||0)    + Math.round(d*0.1);
-      me.hp = Math.max(0, me.hp - d);
-      addLog(st, 'log-ctrl', `  火傷継続(${me.name}) [${d.toLocaleString()}]${_kaenLabel}（残${me.hp.toLocaleString()}）`);
+      applyDoTDmg(st, me, d, isSelf, false, true);
+      addLog(st, 'log-ctrl', `  火傷継続(${me.name}) [${d.toLocaleString()}]${_kaenLabel}（残${me.hp.toLocaleString()}）${st._lastMods}`);
+      st._lastMods = '';
       me._kaen--;
       if (me._kaen <= 0) addLog(st, 'log-info', `  火傷解除(${me.name})`);
       if (me.hp <= 0) continue;
@@ -75,10 +74,9 @@ function processTurn(st, advMult) {
       let d = applyRate(baseDmg(pow, me.chi, me.hp), _suikouRate, pow, true);
       let _suikouLabel = '';
       if ((me.suikouKirRate||0) > 0 && Math.random() < me.suikouKirRate) { d = Math.round(d * (1.5 + (me.suikouKirBonus||0))); _suikouLabel = '⚡奇策'; }
-      me.injured = (me.injured||0) + Math.round(d*0.9);
-      me.dead    = (me.dead||0)    + Math.round(d*0.1);
-      me.hp = Math.max(0, me.hp - d);
-      addLog(st, 'log-ctrl', `  水攻め継続(${me.name}) [${d.toLocaleString()}]${_suikouLabel}（残${me.hp.toLocaleString()}）`);
+      applyDoTDmg(st, me, d, isSelf, false, true);
+      addLog(st, 'log-ctrl', `  水攻め継続(${me.name}) [${d.toLocaleString()}]${_suikouLabel}（残${me.hp.toLocaleString()}）${st._lastMods}`);
+      st._lastMods = '';
       me.suikouT--;
       if (me.suikouT <= 0) { me.healBlock = false; addLog(st, 'log-info', `  水攻め解除(${me.name})`); }
       if (me.hp <= 0) continue;
@@ -89,10 +87,9 @@ function processTurn(st, advMult) {
       let d = applyRate(baseDmg(pow, me.chi, me.hp), me.chudokuRate, pow, true);
       let _chudokuLabel = '';
       if ((me.chudokuKirRate||0) > 0 && Math.random() < me.chudokuKirRate) { d = Math.round(d * (1.5 + (me.chudokuKirBonus||0))); _chudokuLabel = '⚡奇策'; }
-      me.injured = (me.injured||0) + Math.round(d*0.9);
-      me.dead    = (me.dead||0)    + Math.round(d*0.1);
-      me.hp = Math.max(0, me.hp - d);
-      addLog(st, 'log-ctrl', `  中毒継続(${me.name}) [${d.toLocaleString()}]${_chudokuLabel}（残${me.hp.toLocaleString()}）`);
+      applyDoTDmg(st, me, d, isSelf, false, true);
+      addLog(st, 'log-ctrl', `  中毒継続(${me.name}) [${d.toLocaleString()}]${_chudokuLabel}（残${me.hp.toLocaleString()}）${st._lastMods}`);
+      st._lastMods = '';
       me.chudokuT--;
       if (me.chudokuT <= 0) addLog(st, 'log-info', `  中毒解除(${me.name})`);
       if (me.hp <= 0) continue;
@@ -101,10 +98,9 @@ function processTurn(st, advMult) {
     if ((me._kyokouT||0) > 0) {
       const _kyokouBase = baseDmg(me._kyokouPow||100, me.chi, me.hp);
       const _kyokouDmg = applyRate(_kyokouBase, me._kyokouRate||34, me._kyokouPow||100, true);
-      me.injured = (me.injured||0) + Math.round(_kyokouDmg*0.9);
-      me.dead    = (me.dead||0)    + Math.round(_kyokouDmg*0.1);
-      me.hp = Math.max(0, me.hp - _kyokouDmg);
-      addLog(st, 'log-ctrl', `  旋乾転坤恐慌継続(${me.name}) [${_kyokouDmg.toLocaleString()}]（残${me.hp.toLocaleString()}）`);
+      applyDoTDmg(st, me, _kyokouDmg, isSelf, false, true);
+      addLog(st, 'log-ctrl', `  旋乾転坤恐慌継続(${me.name}) [${_kyokouDmg.toLocaleString()}]（残${me.hp.toLocaleString()}）${st._lastMods}`);
+      st._lastMods = '';
       if (me.hp <= 0) continue;
     }
     // 消沈（レートは付与戦法ごとに設定: shochinRate）
@@ -113,10 +109,9 @@ function processTurn(st, advMult) {
       let d = applyRate(baseDmg(pow, me.chi, me.hp), me.shochinRate, pow, true);
       let _shochinLabel = '';
       if ((me.shochinKirRate||0) > 0 && Math.random() < me.shochinKirRate) { d = Math.round(d * (1.5 + (me.shochinKirBonus||0))); _shochinLabel = '⚡奇策'; }
-      me.injured = (me.injured||0) + Math.round(d*0.9);
-      me.dead    = (me.dead||0)    + Math.round(d*0.1);
-      me.hp = Math.max(0, me.hp - d);
-      addLog(st, 'log-ctrl', `  消沈継続(${me.name}) [${d.toLocaleString()}]${_shochinLabel}（残${me.hp.toLocaleString()}）`);
+      applyDoTDmg(st, me, d, isSelf, false, true);
+      addLog(st, 'log-ctrl', `  消沈継続(${me.name}) [${d.toLocaleString()}]${_shochinLabel}（残${me.hp.toLocaleString()}）${st._lastMods}`);
+      st._lastMods = '';
       me.shochinT--;
       if (me.shochinT <= 0) addLog(st, 'log-info', `  消沈解除(${me.name})`);
       if (me.hp <= 0) continue;
@@ -127,10 +122,9 @@ function processTurn(st, advMult) {
       const rate = me.kaisoRate || 94;
       const base = applyRate(baseDmg(pow, me.to, me.hp), rate);
       const cr = applyCrit(base, { critRate: me.kaisoCritRate||0, critBonus: me.kaisoCritBonus||0.5 });
-      me.injured = (me.injured||0) + Math.round(cr.val*0.9);
-      me.dead    = (me.dead||0)    + Math.round(cr.val*0.1);
-      me.hp = Math.max(0, me.hp - cr.val);
-      addLog(st, 'log-ctrl', `  潰走継続(${me.name}) [${cr.val.toLocaleString()}]${cr.label}（残${me.hp.toLocaleString()}）`);
+      applyDoTDmg(st, me, cr.val, isSelf, true, false);
+      addLog(st, 'log-ctrl', `  潰走継続(${me.name}) [${cr.val.toLocaleString()}]${cr.label}（残${me.hp.toLocaleString()}）${st._lastMods}`);
+      st._lastMods = '';
       me.kaisoT--;
       if (me.kaisoT <= 0) addLog(st, 'log-info', `  潰走解除(${me.name})`);
       if (me.hp <= 0) continue;

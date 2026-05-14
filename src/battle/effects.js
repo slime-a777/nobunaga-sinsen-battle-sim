@@ -371,6 +371,148 @@ function dealDmg(st, target, dmg, attacker, attackerIsSelf, isMelee=false, isChi
   return finalDmg;
 }
 
+// 継続ダメージ（DoT）専用のダメージ適用関数
+// dealDmg() と異なり「攻撃者」が存在しないため、対象サイドの防御補正のみ適用する
+// isMelee=true: 潰走など兵刃系, isChi=true: 火傷・水攻め・中毒・消沈・旋乾転坤など計略系
+function applyDoTDmg(st, target, dmg, targetIsSelf, isMelee=false, isChi=true) {
+  // 鉄壁チェック
+  if ((target.tesseki||0) > 0) {
+    target.tesseki--;
+    addLog(st, 'log-buff', `  鉄壁発動！(${target.name}) ダメ無効`);
+    st._lastMods = '';
+    return 0;
+  }
+
+  let finalDmg = dmg;
+  const mods = [];
+  const applyMod = (label, newVal) => {
+    if (newVal === finalDmg) return;
+    const pct = Math.round((newVal - finalDmg) / finalDmg * 100);
+    mods.push(`${label}(${pct >= 0 ? '+' : ''}${pct}%)`);
+    finalDmg = newVal;
+  };
+
+  const _atkBuffRates  = [];
+  const _atkDebufRates = [];
+  const _atkModLabels  = [];
+
+  // 一領具足: 対象サイドの被ダメ-12%（武勇依存）
+  if (st.ichiryo && (st.ichiryo.turns||0) > 2) {
+    const _tSide = targetIsSelf ? 'ally' : 'enemy';
+    if (_tSide === st.ichiryo.side) {
+      const r = Math.min(0.24, 0.12 * statScale(st.ichiryo.bu));
+      _atkDebufRates.push(r); _atkModLabels.push(`一領具足防御-${Math.round(r*100)}%`);
+    }
+  }
+  // 知者楽水防御（統率依存）
+  if ((target._chiryaku||0) > 0) {
+    const _cScale = statScale(target._chiryaku_to||100);
+    const _chiHigher = target._chiryaku_chiHigher;
+    if (isMelee) {
+      const r = (_chiHigher ? 0.24 : 0.18) * _cScale;
+      _atkDebufRates.push(r); _atkModLabels.push(`知者楽水兵刃防御-${Math.round(r*100)}%`);
+    } else if (isChi) {
+      const r = (_chiHigher ? 0.18 : 0.24) * _cScale;
+      _atkDebufRates.push(r); _atkModLabels.push(`知者楽水計略防御-${Math.round(r*100)}%`);
+    } else {
+      const r = (_chiHigher ? 0.24 : 0.18) * _cScale;
+      _atkDebufRates.push(r); _atkModLabels.push(`知者楽水防御-${Math.round(r*100)}%`);
+    }
+  }
+  // 御旗楯無: 40%確率（武勇依存）で被ダメ-40%（知略依存）
+  const _hasMihata = target.slots?.some(s=>s?.name==='御旗楯無') || target.fixed?.name==='御旗楯無';
+  if (_hasMihata) {
+    const _mhProb = Math.min(1.0, 0.40 * statScale(target.bu||100));
+    if (Math.random() < _mhProb) {
+      const _mhReduce = Math.min(0.80, 0.40 * statScale(target.chi||100));
+      _atkDebufRates.push(_mhReduce); _atkModLabels.push(`御旗楯無-${Math.round(_mhReduce*100)}%`);
+    }
+  }
+  // 十面埋伏: 被ダメ増加
+  if ((target._jubai||0) > 0) {
+    _atkBuffRates.push(target._jubai); _atkModLabels.push(`十面埋伏+${Math.round(target._jubai*100)}%`);
+  }
+  // 特性: 被ダメ軽減（全体・兵刃・計略）
+  if ((target.traitDefReduce||0) > 0) {
+    _atkDebufRates.push(target.traitDefReduce); _atkModLabels.push(`特性被ダメ軽減-${Math.round(target.traitDefReduce*100)}%`);
+  }
+  if (isMelee && (target.traitBuDefReduce||0) > 0) {
+    _atkDebufRates.push(target.traitBuDefReduce); _atkModLabels.push(`特性兵刃被ダメ軽減-${Math.round(target.traitBuDefReduce*100)}%`);
+  }
+  if (isChi && (target.traitChiDefReduce||0) > 0) {
+    _atkDebufRates.push(target.traitChiDefReduce); _atkModLabels.push(`特性計略被ダメ軽減-${Math.round(target.traitChiDefReduce*100)}%`);
+  }
+  // 盤石耽々: 被ダメ軽減（統率依存、毎T増加）
+  if ((target._bandokuDef||0) > 0) {
+    _atkDebufRates.push(target._bandokuDef); _atkModLabels.push(`盤石耽々-${Math.round(target._bandokuDef*100)}%`);
+  }
+  // 風林火山【山】: 兵刃被ダメ-22%
+  if (isMelee && (target._furinDefBuf||0) > 0) {
+    _atkDebufRates.push(target._furinDefBuf); _atkModLabels.push(`風林火山(山)-${Math.round(target._furinDefBuf*100)}%`);
+  }
+  // 金城湯池: 被ダメ-15%（1T）
+  if ((target._kinjoDefT||0) > 0) {
+    _atkDebufRates.push(0.15); _atkModLabels.push(`金城湯池防御-15%`);
+  }
+  // 勇志不抜: 被ダメ-20%
+  if ((target._yuushiBeiT||0) > 0) {
+    _atkDebufRates.push(0.20); _atkModLabels.push(`勇志不抜防御-20%`);
+  }
+  // 献身: 被ダメ+20%（自己デバフ）
+  if (target._kensinSelfDebuf) {
+    _atkBuffRates.push(0.20); _atkModLabels.push(`献身自己デバフ+20%`);
+  }
+  // 警戒周到: 対象サイドの全体被ダメ-22%（知略依存）
+  const _tgtSide = targetIsSelf ? 'ally' : 'enemy';
+  if (st._keikaiSide && st._keikaiSide === _tgtSide && (st._keikaiTurns||0) > 0) {
+    const _keiReduce = Math.min(0.60, 0.22 * statScale(st._keikaiChi||100));
+    _atkDebufRates.push(_keiReduce); _atkModLabels.push(`警戒周到防御-${Math.round(_keiReduce*100)}%`);
+  }
+
+  if (_atkBuffRates.length > 0 || _atkDebufRates.length > 0) {
+    const _buffNet  = _atkBuffRates.reduce( (acc, r) => acc + r, 0);
+    const _debufNet = _atkDebufRates.reduce((acc, r) => acc + r, 0);
+    const _netMult  = Math.max(0, 1 + _buffNet - _debufNet);
+    applyMod(`ダメ補正[${_atkModLabels.join('・')}]`, Math.round(finalDmg * _netMult));
+  }
+
+  if (mods.length > 0) {
+    const totalPct = Math.round((finalDmg - dmg) / dmg * 100);
+    st._lastMods = ` ※修正[${mods.join('・')}]→${finalDmg.toLocaleString()}(計${totalPct >= 0 ? '+' : ''}${totalPct}%)`;
+  } else {
+    st._lastMods = '';
+  }
+
+  // 傭兵シールド: ダメージをHPより先に吸収
+  if ((target.yoheiHp||0) > 0 && finalDmg > 0) {
+    const _yAbsorb = Math.min(target.yoheiHp, finalDmg);
+    target.yoheiHp -= _yAbsorb;
+    finalDmg -= _yAbsorb;
+    if (finalDmg <= 0) {
+      st._lastMods = ` ※傭兵吸収[${_yAbsorb.toLocaleString()}]（傭兵残${target.yoheiHp.toLocaleString()}）`;
+      return 0;
+    }
+  }
+
+  target.injured = (target.injured||0) + Math.round(finalDmg * 0.9);
+  target.dead    = (target.dead||0)    + Math.round(finalDmg * 0.1);
+  target.hp = Math.max(0, target.hp - finalDmg);
+
+  // 回生: ダメージを受けるたびに発動（kaiseiT > 0の間）
+  if (target.hp > 0 && (target.kaiseiT||0) > 0 && finalDmg > 0) {
+    const _kProb = target.kaiseiProb ?? 0.50;
+    const _kRate = target.kaiseiHealRate ?? 66;
+    const _kStat = (target.kaiseiDepStat||0) > 0 ? target.kaiseiDepStat : (target.chi||100);
+    if (Math.random() < _kProb) {
+      const h = applyHealRate(target.hp, _kStat, _kRate);
+      const {healed: _kH, remainHp: _kRH} = applyHeal(target, h, st, targetIsSelf ? 'ally' : 'enemy');
+      if (_kH > 0) addLog(st, 'log-heal', `  回生(${target.name}) ダメ受け→+${_kH.toLocaleString()}（残${_kRH.toLocaleString()}）`);
+    }
+  }
+
+  return finalDmg;
+}
+
 // 回復処理（負傷兵プールからのみ回復可能）
 // 戻り値: { healed: 回復量, remainHp: 回復後のHP }
 function applyHeal(target, h, st=null, side=null) {
