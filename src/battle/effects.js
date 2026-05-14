@@ -246,9 +246,10 @@ function dealDmg(st, target, dmg, attacker, attackerIsSelf, isMelee=false, isChi
   if (isMelee && (target._furinDefBuf||0) > 0) {
     _atkDebufRates.push(target._furinDefBuf); _atkModLabels.push(`風林火山(山)-${Math.round(target._furinDefBuf*100)}%`);
   }
-  // 金城湯池: 自身被ダメ-15%（1T）
+  // 金城湯池: 自身被ダメ軽減（知略依存、最大30%）
   if ((target._kinjoDefT||0) > 0) {
-    _atkDebufRates.push(0.15); _atkModLabels.push(`金城湯池防御-15%`);
+    const _kinjoR = Math.min(0.30, 0.15 * statScale(target._kinjoChi||100));
+    _atkDebufRates.push(_kinjoR); _atkModLabels.push(`金城湯池防御-${Math.round(_kinjoR*100)}%`);
   }
   // 勇志不抜: 被ダメ-20%（簡略化: 肩代わりは省略）
   if ((target._yuushiBeiT||0) > 0) {
@@ -525,7 +526,10 @@ function applyDoTDmg(st, target, dmg, targetIsSelf, isMelee=false, isChi=true) {
 // 戻り値: { healed: 回復量, remainHp: 回復後のHP }
 function applyHeal(target, h, st=null, side=null) {
   if (target.healBlock) return { healed: 0, remainHp: target.hp };
-  const healable = Math.min(h, target.injured || 0);
+  // 境目奮戦等: 回復効果低下
+  const _reduceRate = target._healReduceRate || 0;
+  const effectiveH = _reduceRate > 0 ? Math.round(h * (1 - _reduceRate)) : h;
+  const healable = Math.min(effectiveH, target.injured || 0);
   if (healable <= 0) return { healed: 0, remainHp: target.hp };
   target.injured -= healable;
   target.hp = Math.min(target.maxHp - (target.dead || 0), target.hp + healable);

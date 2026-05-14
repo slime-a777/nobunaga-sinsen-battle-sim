@@ -52,6 +52,7 @@ const _src = `
   _exportRef.execFixed = execFixed;
   _exportRef.baseDmg   = baseDmg;
   _exportRef.applyRate = applyRate;
+  _exportRef.applyHeal = applyHeal;
   _exportRef.purify    = purify;
 `;
 
@@ -63,7 +64,7 @@ try {
   process.exit(1);
 }
 
-const { SENPO_DB, execSlot, execFixed, baseDmg, applyRate } = _exportRef;
+const { SENPO_DB, execSlot, execFixed, baseDmg, applyRate, applyHeal } = _exportRef;
 
 // ─ テストユーティリティ
 function resetDmgLog() { _dmgLog.length = 0; }
@@ -588,6 +589,50 @@ test('帰蝶の舞 — 発動確率が知略依存(statScale)', () => {
 // ════════════════════════════════════════════
 // 結果出力
 // ════════════════════════════════════════════
+test('境目奮戦 — applyHealで回復効果低下が適用される', () => {
+  const me  = makeUnit({ name: '攻撃者', chi: 100 });
+  const tgt = makeUnit({ name: '標的',  hp: 8000, maxHp: 10000, injured: 2000 });
+  const st  = makeState([me], [tgt]);
+  _withRandom(0, () => { execSlot(st, SENPO_DB['境目奮戦'], me, true, 1.0); });
+  // 回復効果-30%が付与されている
+  assert((tgt._healReduceRate || 0) > 0, '境目奮戦: _healReduceRate が付与されていない');
+  // applyHealで回復量が30%削減される
+  const healFull = 1000;
+  tgt.injured = 2000;
+  const before = tgt.hp;
+  applyHeal(tgt, healFull, st, 'enemy');
+  const healed = tgt.hp - before;
+  assert(healed < healFull, `境目奮戦: 回復 ${healed} が減少していない（通常${healFull}）`);
+  assertEqual(healed, Math.round(healFull * (1 - tgt._healReduceRate)), '境目奮戦: 回復量30%削減');
+});
+
+test('金城湯池 — 被ダメ軽減が知略依存になっている', () => {
+  const me100 = makeUnit({ name: '金城(知略100)', chi: 100 });
+  const me200 = makeUnit({ name: '金城(知略200)', chi: 200 });
+  const tgt   = makeUnit({ name: '敵' });
+  const st1   = makeState([me100], [tgt]);
+  const st2   = makeState([me200], [tgt]);
+  _withRandom(0, () => { execSlot(st1, SENPO_DB['金城湯池'], me100, true, 1.0); });
+  _withRandom(0, () => { execSlot(st2, SENPO_DB['金城湯池'], me200, true, 1.0); });
+  // 知略100: 0.15*1.0=15%、知略200: 0.15*1.25=18.75%
+  const r100 = Math.min(0.30, 0.15 * (1 + (100 - 100) * 0.0025));
+  const r200 = Math.min(0.30, 0.15 * (1 + (200 - 100) * 0.0025));
+  assertEqual(me100._kinjoChi, 100, '金城湯池: _kinjoChi=100');
+  assertEqual(me200._kinjoChi, 200, '金城湯池: _kinjoChi=200');
+  assert(r200 > r100, `金城湯池: 知略200(${Math.round(r200*100)}%)は知略100(${Math.round(r100*100)}%)より高いはず`);
+});
+
+test('勇猛無比 — 再発動が最大2回まで', () => {
+  const me  = makeUnit({ name: '攻撃者', bu: 150, spd: 200 }); // spd高いと60%*1.25=75%
+  const e1  = makeUnit({ name: '敵1' });
+  const e2  = makeUnit({ name: '敵2' });
+  const st  = makeState([me], [e1, e2]);
+  resetDmgLog();
+  // random=0 → 全判定成功: 初回122% + 再発動1回目96% + 再発動2回目96% = 3ヒット
+  _withRandom(0, () => { execSlot(st, SENPO_DB['勇猛無比'], me, true, 1.0); });
+  assert(_dmgLog.filter(d => d.isMelee).length >= 2, `勇猛無比: 少なくとも2ヒット期待(初回+再発動1回)`);
+});
+
 const RESET  = '\x1b[0m';
 const GREEN  = '\x1b[32m';
 const RED    = '\x1b[31m';

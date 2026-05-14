@@ -1654,13 +1654,15 @@ function execSlot(st, sk, me, isSelf, advMult, typeFilter=null) {
       const r = meleeHit(baseDmg(me.bu,t.to,me.hp),122,t);
       addLog(st,logSide,`  [${side}] 勇猛無比(${me.name}→${t.name}) 兵刃[${r.dmg.toLocaleString()}]${r.label}+会心25%(2T)（残${t.hp.toLocaleString()}）${st._lastMods||''}`);
       st._lastMods = '';
-      // 60%で再発動
-      if (Math.random() < Math.min(1.0, 0.60 * statScale(me.spd||100))) {
+      // 最大2回まで再発動（速度依存60%）
+      const reProb = Math.min(1.0, 0.60 * statScale(me.spd||100));
+      for (let _re = 0; _re < 2; _re++) {
+        if (Math.random() >= reProb) break;
         me.critRate = Math.min(1.0, (me.critRate||0) + 0.15);
         const t2 = pickTarget(opp.filter(o=>o.hp>0&&o!==t)) || pickTarget(opp);
         if (t2) {
           const r2 = meleeHit(baseDmg(me.bu,t2.to,me.hp),96,t2);
-          addLog(st,logSide,`  勇猛無比(再発動)(${me.name}→${t2.name}) 兵刃[${r2.dmg.toLocaleString()}]${r2.label}（残${t2.hp.toLocaleString()}）${st._lastMods||''}`);
+          addLog(st,logSide,`  勇猛無比(再発動${_re+1}回目)(${me.name}→${t2.name}) 兵刃[${r2.dmg.toLocaleString()}]${r2.label}（残${t2.hp.toLocaleString()}）${st._lastMods||''}`);
           st._lastMods = '';
         }
       }
@@ -1671,8 +1673,11 @@ function execSlot(st, sk, me, isSelf, advMult, typeFilter=null) {
       tryCtrl(t, u=>{ u._kensei = true; }, '牽制', st);
       addLog(st,'log-ctrl',`  金城湯池: ${t.name}に牽制`);
     });
+    // 被ダメ軽減: 知略依存(statScale)で最大30%
+    const _kinjoRate = Math.min(0.30, 0.15 * statScale(me.chi||100));
     me._kinjoDefT = 1;
-    addLog(st,'log-buff',`  金城湯池: ${me.name} 被ダメ-15%(1T)`);
+    me._kinjoChi = me.chi;
+    addLog(st,'log-buff',`  金城湯池: ${me.name} 被ダメ-${Math.round(_kinjoRate*100)}%(1T、知略依存)`);
     // 次T前に自身回復（フラグで次T処理）
     me._kinjoHealNext = true;
     addLog(st,'log-buff',`  金城湯池: 次T行動前に自身回復78%予約`);
@@ -1740,9 +1745,10 @@ function execSlot(st, sk, me, isSelf, advMult, typeFilter=null) {
       const r = calcHit(baseDmg(me.chi,lowestHpT.chi,me.hp),260,me.chi,lowestHpT);
       addLog(st,logSide,`  [${side}] 境目奮戦(${me.name}→${lowestHpT.name}) 計略[${r.dmg.toLocaleString()}]${r.label}（残${lowestHpT.hp.toLocaleString()}）${st._lastMods||''}`);
       st._lastMods = '';
+      const _sakaiRate = Math.min(0.60, 0.30 * statScale(me.chi||100));
       lowestHpT._healReduceT = 1;
-      lowestHpT._healReduceRate = 0.30;
-      addLog(st,'log-ctrl',`  境目奮戦: ${lowestHpT.name} 回復効果-30%(1T)`);
+      lowestHpT._healReduceRate = _sakaiRate;
+      addLog(st,'log-ctrl',`  境目奮戦: ${lowestHpT.name} 回復効果-${Math.round(_sakaiRate*100)}%(1T、知略依存)`);
     }
   } else if (n==='静動自在') {
     // 自身より遅い友軍1名に洞察+先攻2T（そうでなければ自身に）

@@ -1052,6 +1052,8 @@ function processTurn(st, advMult) {
         }
       }
       if (me._sankakuMarked) me._sankakuMarked = false;
+      // 境目奮戦等: 回復効果低下タイマー
+      if ((me._healReduceT||0) > 0) { me._healReduceT--; if (me._healReduceT <= 0) { me._healReduceRate = 0; } }
       // 一触即発・統率デバフタイマー
       if ((me._toDebufT||0) > 0) {
         me._toDebufT--;
