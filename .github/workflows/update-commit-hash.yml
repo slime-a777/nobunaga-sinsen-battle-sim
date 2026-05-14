@@ -1,0 +1,26 @@
+name: コミットハッシュ埋め込み
+
+on:
+  push:
+    branches: [master]
+
+jobs:
+  update-hash:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: コミットハッシュをHTMLに埋め込む
+        run: |
+          HASH=$(git rev-parse --short HEAD)
+          sed -i "s/COMMIT_HASH_PLACEHOLDER/$HASH/g" battle_simulator.html
+
+      - name: 変更をコミット・プッシュ
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add battle_simulator.html
+          git diff --staged --quiet || git commit -m "ci: コミットハッシュを更新 [skip ci]"
+          git push
