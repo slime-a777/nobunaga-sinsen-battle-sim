@@ -213,8 +213,8 @@ function execFixed(st, me, isSelf, advMult, isTaisho=false, typeFilter=null) {
       addLog(st, logS, `  [${isSelf?'自':'敵'}] 梟雄の計(${me.name}→${t.name}) 計略[${actualDmg.toLocaleString()}]${kr.label}（残${t.hp.toLocaleString()}）${st._lastMods||''}`);
       st._lastMods = '';
       if (Math.random() < 0.55) {
-        tryCtrl(t, u=>{ u.chudokuT = Math.max(u.chudokuT||0, 2); u.chudokuPow = me.chi; u.chudokuKirRate = me.kiryakuRate||0; u.chudokuKirBonus = me.kiryakuBonus||0; }, '中毒', st);
-        addLog(st,'log-ctrl',`    中毒2T付与`);
+        tryCtrl(t, u=>{ u.chudokuT = Math.max(u.chudokuT||0, 2); u.chudokuPow = me.chi; u.chudokuRate = 96; u.chudokuKirRate = me.kiryakuRate||0; u.chudokuKirBonus = me.kiryakuBonus||0; }, '中毒', st);
+        addLog(st,'log-ctrl',`    中毒2T(96%/T)付与`);
       }
       if (Math.random() < 0.55) {
         t._kaen = (t._kaen||0) + 2; t._kaenRate = 96;
@@ -222,36 +222,33 @@ function execFixed(st, me, isSelf, advMult, isTaisho=false, typeFilter=null) {
       }
     });
   }
-  // 時は今（明智光秀）計略56%＋5種の継続状態から1種を3T付与（未付与優先）
+  // 時は今（明智光秀）敵2名に5種の継続状態から1種を3T付与（未付与優先）
+  // 継続ダメージ56%/T（知略依存、潰走のみ武勇依存）。奇策・会心も発動する
   else if (f.name === '時は今') {
     const logS = isSelf ? 'log-ally' : 'log-enemy';
     opp.filter(o=>o.hp>0).slice(0,2).forEach(t=>{
-      const base = baseDmg(me.chi, t.chi, me.hp);
-      const d = applyRate(base, 56, me.chi, false);
-      const actualDmg = dealDmg(st, t, d, me, isSelf, false, true);
-      addLog(st, logS, `  [${isSelf?'自':'敵'}] 時は今(${me.name}→${t.name}) 計略[${actualDmg.toLocaleString()}]（残${t.hp.toLocaleString()}）${st._lastMods||''}`);
-      st._lastMods = '';
+      addLog(st, logS, `  [${isSelf?'自':'敵'}] 時は今(${me.name}→${t.name})`);
       if ((t.dousatsu||0) > 0) {
         addLog(st,'log-buff',`  洞察(${t.name}): 時は今の制御効果を無効`);
         return;
       }
       const states = [
         { label:'火傷',   has: ()=>(t._kaen||0)>0,
-          apply: ()=>{ t._kaen = Math.max(t._kaen||0, 3); t._kaenKirRate = me.kiryakuRate||0; t._kaenKirBonus = me.kiryakuBonus||0; } },
+          apply: ()=>{ t._kaen = Math.max(t._kaen||0, 3); t._kaenRate = 56; t._kaenKirRate = me.kiryakuRate||0; t._kaenKirBonus = me.kiryakuBonus||0; } },
         { label:'水攻め', has: ()=>(t.suikouT||0)>0,
-          apply: ()=>{ t.suikouT = Math.max(t.suikouT||0, 3); t.suikouPower = me.chi; t.suikouKirRate = me.kiryakuRate||0; t.suikouKirBonus = me.kiryakuBonus||0; } },
+          apply: ()=>{ t.suikouT = Math.max(t.suikouT||0, 3); t.suikouPower = me.chi; t.suikouRate = 56; t.suikouKirRate = me.kiryakuRate||0; t.suikouKirBonus = me.kiryakuBonus||0; } },
         { label:'中毒',   has: ()=>(t.chudokuT||0)>0,
-          apply: ()=>{ t.chudokuT = Math.max(t.chudokuT||0, 3); t.chudokuPow = me.chi; t.chudokuKirRate = me.kiryakuRate||0; t.chudokuKirBonus = me.kiryakuBonus||0; } },
+          apply: ()=>{ t.chudokuT = Math.max(t.chudokuT||0, 3); t.chudokuPow = me.chi; t.chudokuRate = 56; t.chudokuKirRate = me.kiryakuRate||0; t.chudokuKirBonus = me.kiryakuBonus||0; } },
         { label:'消沈',   has: ()=>(t.shochinT||0)>0,
-          apply: ()=>{ t.shochinT = Math.max(t.shochinT||0, 3); t.shochinPow = me.chi; t.shochinKirRate = me.kiryakuRate||0; t.shochinKirBonus = me.kiryakuBonus||0; } },
+          apply: ()=>{ t.shochinT = Math.max(t.shochinT||0, 3); t.shochinPow = me.chi; t.shochinRate = 56; t.shochinKirRate = me.kiryakuRate||0; t.shochinKirBonus = me.kiryakuBonus||0; } },
         { label:'潰走',   has: ()=>(t.kaisoT||0)>0,
-          apply: ()=>{ t.kaisoT = Math.max(t.kaisoT||0, 3); t.kaisoPow = me.bu; t.kaisoRate = 94; t.kaisoCritRate = me.critRate||0; t.kaisoCritBonus = me.critBonus||0.5; } },
+          apply: ()=>{ t.kaisoT = Math.max(t.kaisoT||0, 3); t.kaisoPow = me.bu; t.kaisoRate = 56; t.kaisoCritRate = me.critRate||0; t.kaisoCritBonus = me.critBonus||0.5; } },
       ];
       const absent = states.filter(s => !s.has());
       const pool = absent.length > 0 ? absent : states;
       const chosen = pool[Math.floor(Math.random() * pool.length)];
       chosen.apply();
-      addLog(st, 'log-ctrl', `    時は今: ${t.name}に${chosen.label}3T付与`);
+      addLog(st, 'log-ctrl', `    時は今: ${t.name}に${chosen.label}(56%/T)3T付与`);
     });
   }
   // かかれ柴田（柴田勝家）自身の弱体2個浄化＋敵全体に兵刃154%
@@ -1523,8 +1520,8 @@ function execSlot(st, sk, me, isSelf, advMult, typeFilter=null) {
     addLog(st,'log-buff',`  縦横馳突(${me.name}) 連撃＋封撃耐性1T`);
   } else if (n==='大智不智') {
     opp.filter(o=>o.hp>0).slice(0,2).forEach(t=>{
-      tryCtrl(t, u=>{ u.shochinT = Math.max(u.shochinT||0, 3); u.shochinPow = me.chi; u.shochinKirRate = me.kiryakuRate||0; u.shochinKirBonus = me.kiryakuBonus||0; }, '消沈', st);
-      addLog(st,'log-ctrl',`  大智不智(${t.name}) 消沈3T（知略依存継続ダメ）付与`);
+      tryCtrl(t, u=>{ u.shochinT = Math.max(u.shochinT||0, 3); u.shochinPow = me.chi; u.shochinRate = 104; u.shochinKirRate = me.kiryakuRate||0; u.shochinKirBonus = me.kiryakuBonus||0; }, '消沈', st);
+      addLog(st,'log-ctrl',`  大智不智(${t.name}) 消沈3T(104%/T)付与`);
     });
   } else if (n==='紅蓮の炎') {
     opp.filter(o=>o.hp>0).forEach(t=>{
