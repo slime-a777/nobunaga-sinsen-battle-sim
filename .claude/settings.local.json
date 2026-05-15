@@ -25,7 +25,16 @@
       "WebFetch(domain:sanguo-zhi.com)",
       "Bash(git push *)",
       "Bash(python3 *)",
-      "PowerShell(\\(Get-Content \"C:\\\\Users\\\\slime_a\\\\Documents\\\\sinsen\\\\battle_simulator.html\" | Measure-Object -Line\\).Lines)"
+      "PowerShell(\\(Get-Content \"C:\\\\Users\\\\slime_a\\\\Documents\\\\sinsen\\\\battle_simulator.html\" | Measure-Object -Line\\).Lines)",
+      "Bash(python *)",
+      "PowerShell(python --version; python3 --version)",
+      "PowerShell(Get-Command *)",
+      "Bash(git pull *)",
+      "Bash(git checkout *)",
+      "Bash(gh pr *)",
+      "PowerShell(winget *)",
+      "PowerShell(gh *)",
+      "PowerShell(gh auth *)"
     ],
     "defaultMode": "auto"
   }

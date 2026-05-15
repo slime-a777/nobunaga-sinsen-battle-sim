@@ -269,6 +269,14 @@ function processTurn(st, advMult) {
       }
     }
 
+    // ─ 受動・兵種戦法（行動不能・封撃時でも発動） ─
+    if (me.hp > 0) {
+      execFixed(st, me, isSelf, advMult, idx === 0, ['passive']);
+      (me.slots||[]).forEach(sk => {
+        if (sk) execSlot(st, sk, me, isSelf, advMult, ['passive']);
+      });
+    }
+
     if (!_skipAction) {
     // ─ 能動戦法（固有→覚醒前伝授→覚醒後伝授の順） ─
     st._isActiveSkill = true;
@@ -778,14 +786,6 @@ function processTurn(st, advMult) {
       }
     }
     } // end !_skipAction
-
-    // ─ 受動・兵種戦法（行動不能・封撃時でも発動） ─
-    if (me.hp > 0) {
-      execFixed(st, me, isSelf, advMult, idx === 0, ['passive']);
-      (me.slots||[]).forEach(sk => {
-        if (sk) execSlot(st, sk, me, isSelf, advMult, ['passive']);
-      });
-    }
 
     // 制御状態ターン消化（行動後）
     // カウントが尽きたら次の行動前に解除ログを出すためフラグをセット
