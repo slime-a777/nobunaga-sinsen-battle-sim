@@ -60,6 +60,11 @@ function dealDmg(st, target, dmg, attacker, attackerIsSelf, isMelee=false, isChi
     addLog(st,'log-buff',`  鉄壁発動！(${target.name}) ダメ無効`);
     return 0;
   }
+  // 回避チェック
+  if ((target.evasionRate || 0) > 0 && Math.random() < target.evasionRate) {
+    addLog(st,'log-buff',`  回避発動！(${target.name}) ダメ無効`);
+    return 0;
+  }
 
   let finalDmg = dmg;
   // バフ/デバフ修正をまとめて記録するリスト { label, pct }
