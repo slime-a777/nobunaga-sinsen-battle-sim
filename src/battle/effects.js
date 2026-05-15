@@ -322,6 +322,17 @@ function dealDmg(st, target, dmg, attacker, attackerIsSelf, isMelee=false, isChi
   target.dead = (target.dead || 0) + deadGain;
   target.hp = Math.max(0, target.hp - finalDmg);
 
+  // 離反: 兵刃ダメ与時にダメ量に応じて自回復
+  if (isMelee && finalDmg > 0 && attacker.hp > 0 && (attacker.renegadeRate||0) > 0) {
+    const _renegHeal = Math.round(finalDmg * attacker.renegadeRate);
+    const _renegSide = attackerIsSelf ? 'ally' : 'enemy';
+    const {healed: _renegH, remainHp: _renegRH} = applyHeal(attacker, _renegHeal, st, _renegSide);
+    if (_renegH > 0) {
+      (st._pendingPostAttackLogs = st._pendingPostAttackLogs||[]).push({cls:'log-heal', msg:`  離反(${attacker.name}) 兵刃回復+${_renegH.toLocaleString()}（残${_renegRH.toLocaleString()}）`});
+      if (st._pendingMizuLog) { st._pendingPostAttackLogs.push(st._pendingMizuLog); st._pendingMizuLog = null; }
+    }
+  }
+
   // 回生：ダメージを受けるたびに発動（kaiseiT > 0の間）
   if (target.hp > 0 && (target.kaiseiT || 0) > 0 && finalDmg > 0) {
     const _kProb = target.kaiseiProb ?? 0.50;
