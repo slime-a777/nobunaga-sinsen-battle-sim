@@ -57,7 +57,7 @@ function initUnit(b) {
     musaku: 0,              // 無策ターン残（能動戦法不可）
     hibi: 0,                // 疲弊ターン残（与ダメ無効）
     iatsuT: 0,              // 威圧ターン残（行動不能・確定）
-    renegadeRate,           // 離反確率（通常攻撃が味方に向く）
+    renegadeRate,           // 離反率（兵刃ダメ与時にダメ量×率で自回復）
     shochinT: 0,            // 消沈ターン残（知略依存継続ダメ104%/T）
     shochinPow: 0,          // 消沈威力（付与者の知略）
     kaisoT: 0,              // 潰走ターン残（武勇依存継続ダメ）

@@ -334,14 +334,6 @@ function processTurn(st, advMult) {
             }
           }
         }
-        // 離反チェック：通常攻撃が味方に向く（混乱・挑発時は対象変更しない）
-        if (!isTaunted && !((me.confused||0) > 0) && (me.renegadeRate||0) > 0 && Math.random() < me.renegadeRate) {
-          const renegCandidates = allies.filter(a => a !== me && a.hp > 0);
-          if (renegCandidates.length > 0) {
-            tgt = renegCandidates[Math.floor(Math.random() * renegCandidates.length)];
-            addLog(st, 'log-ctrl', `  離反(${me.name})→(${tgt.name}) 攻撃が味方に！`);
-          }
-        }
         let dmgBase = baseDmg(me.bu, tgt.to, me.hp);
         // 兵種有利：自軍有利なら自軍×advMult、敵軍×(2-advMult)（例: 1.15→0.85）
         dmgBase *= isSelf ? advMult : (2.0 - advMult);
@@ -403,7 +395,7 @@ function processTurn(st, advMult) {
           if (tgt.slots?.some(s=>s?.name==='沈魚落雁') || tgt.fixed?.name==='沈魚落雁') {
             _chingyoPending.push({ attacker: me, defender: tgt });
           }
-          // 古今独歩: 通常攻撃被弾時48%で反撃＋離反4%獲得
+          // 古今独歩: 通常攻撃被弾時48%で反撃（突撃・乱舞・連撃も発動可）＋離反4%獲得
           if (tgt.fixed?.name === '古今独歩' && Math.random() < 0.48) {
             const cBase = baseDmg(tgt.bu, me.to, tgt.hp);
             const cFin = dealDmg(st, me, Math.round(applyRate(cBase, 70) * rand4()), tgt, !isSelf, true);
@@ -413,11 +405,15 @@ function processTurn(st, advMult) {
               (st._pendingPostAttackLogs||[]).forEach(({cls, msg}) => addLog(st, cls, msg));
               st._pendingPostAttackLogs = [];
             }
+            // 反撃は通常攻撃扱いのため突撃戦法も発動
+            doCounterStrike(tgt);
             const tgtTeam = isSelf ? st.enemy : st.ally;
             const tgtIdx = tgtTeam.indexOf(tgt);
             const maxReneg = (tgtIdx === 0) ? 0.40 : 0.32;
-            tgt.renegadeRate = Math.min((tgt.renegadeRate||0) + 0.04, maxReneg);
-            addLog(st, 'log-buff', `  古今独歩: ${tgt.name} 離反+4%（計${Math.round(tgt.renegadeRate*100)}%）`);
+            if ((tgt.renegadeRate||0) < maxReneg) {
+              tgt.renegadeRate = Math.min(maxReneg, (tgt.renegadeRate||0) + 0.04);
+              addLog(st, 'log-buff', `  古今独歩: ${tgt.name} 離反+4%（計${Math.round(tgt.renegadeRate*100)}%）`);
+            }
           }
           // 鬼美濃: 被ダメ時35%で弱体浄化＋回復112%
           if (tgt.fixed?.name === '鬼美濃' && Math.random() < 0.35) {
@@ -562,23 +558,6 @@ function processTurn(st, advMult) {
             const {healed:_kimHH, remainHp:_kimRH} = applyHeal(tgt, _kimH, st, !isSelf?'ally':'enemy');
             addLog(st, isSelf?'log-enemy':'log-ally', `  鬼美濃(${tgt.name}): 被ダメ→${_kimiCleared.length?_kimiCleared.join('・')+'浄化＋':''}回復+${_kimHH.toLocaleString()}（残${_kimRH.toLocaleString()}）`);
           }
-          // 古今独歩（本多忠勝）passive: 被通攻時24-48%で攻撃者に兵刃70%＋離反+2%
-          if (tgt.fixed?.name === '古今独歩' && tgt.hp > 0) {
-            const _kkkProb = Math.min(1.0, 0.48 * statScale(tgt.bu||100));
-            if (Math.random() < _kkkProb) {
-              const _kkkFin = dealDmg(st, me, Math.round(applyRate(baseDmg(tgt.bu, me.to, tgt.hp), 70) * rand4()), tgt, !isSelf, true, false);
-              if (_kkkFin > 0) {
-                addLog(st, isSelf?'log-enemy':'log-ally', `  古今独歩(${tgt.name}→${me.name}) 兵刃[${_kkkFin.toLocaleString()}]（残${me.hp.toLocaleString()}）${st._lastMods||''}`);
-                st._lastMods = '';
-              }
-              tgt._kkkRenegStacks = Math.min(tgt._kkkRenegStacks||0, 8);
-              if ((tgt._kkkRenegStacks||0) < 8) {
-                tgt._kkkRenegStacks = (tgt._kkkRenegStacks||0) + 1;
-                tgt.renegadeRate = Math.min(1.0, (tgt.renegadeRate||0) + 0.02);
-                addLog(st, 'log-buff', `  古今独歩(${tgt.name}): 離反+2%（計${Math.round(tgt.renegadeRate*100)}%、${tgt._kkkRenegStacks}スタック）`);
-              }
-            }
-          }
           // 三河魂（徳川家康）: 保護友軍が通攻受けた時 攻撃者の全属性-2.5%（最大8重）
           if (st._mikawaMagatamaGuards?.includes(tgt) && tgt.hp > 0) {
             const _mkHolder = (isSelf?st.ally:st.enemy).find(a=>a.fixed?.name==='三河魂'&&a.hp>0);
@@ -648,6 +627,16 @@ function processTurn(st, advMult) {
         execFixed(st, me, isSelf, advMult, idx === 0, ['strike']);
         (me.slots||[]).forEach(sk => {
           if (sk) execSlot(st, sk, me, isSelf, advMult, ['strike']);
+        });
+      };
+      // 反撃者の突撃戦法を発動するヘルパー（反撃は通常攻撃扱いのため）
+      const doCounterStrike = (ctr) => {
+        if (ctr.hp <= 0) return;
+        const ctrIsSelf = !isSelf;
+        const ctrIsGeneral = (ctrIsSelf ? st.ally : st.enemy).indexOf(ctr) === 0;
+        execFixed(st, ctr, ctrIsSelf, advMult, ctrIsGeneral, ['strike']);
+        (ctr.slots||[]).forEach(sk => {
+          if (sk) execSlot(st, sk, ctr, ctrIsSelf, advMult, ['strike']);
         });
       };
 
