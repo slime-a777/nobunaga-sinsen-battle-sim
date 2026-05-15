@@ -15,7 +15,7 @@ jobs:
       - name: コミットハッシュをHTMLに埋め込む
         run: |
           HASH=$(git rev-parse --short HEAD)
-          sed -i "s/COMMIT_HASH_PLACEHOLDER/$HASH/g" battle_simulator.html
+          sed -i "s/\(<span class=\"commit-hash\">\)[^<]*/\1$HASH/" battle_simulator.html
 
       - name: 変更をコミット・プッシュ
         run: |
