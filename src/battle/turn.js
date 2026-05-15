@@ -915,6 +915,10 @@ function processTurn(st, advMult) {
   // デバフターン減少（行動開始時に消化するもの以外）
   ['ally','enemy'].forEach((side, _si) => {
     st[side].forEach((me, _mi) => {
+      if ((me.evasionT || 0) > 0) {
+        me.evasionT--;
+        if (me.evasionT <= 0) { me.evasionT = 0; me.evasionRate = 0; }
+      }
       if (me._shintyo > 0) me._shintyo--;
       if (me._chiryaku > 0) me._chiryaku--;
       if (me._kichoDebuf > 0) me._kichoDebuf--;

@@ -2166,7 +2166,12 @@ function execCommand(st, me, isSelf, isTaisho=false) {
           addLog(st,'log-buff',`  尼御台(${taisho.name}): 洞察2T付与`);
         }
       } else if (f.name === '非常の器') {
-        addLog(st,'log-buff',`  非常の器: T3以降 毎T自軍全体に休養付与（以降継続）`);
+        const allies = isSelf ? st.ally : st.enemy;
+        allies.filter(a => a.hp > 0).forEach(a => {
+          a.evasionRate = Math.max(a.evasionRate || 0, 0.35);
+          a.evasionT    = Math.max(a.evasionT    || 0, 2);
+        });
+        addLog(st,'log-buff',`  非常の器: 自軍全体に回避35%(T1〜2)付与。T3以降 毎T休養付与（以降継続）`);
       }
     }
     // 3T目以降の尼御台：大将に離反24%付与
