@@ -326,7 +326,10 @@ function dealDmg(st, target, dmg, attacker, attackerIsSelf, isMelee=false, isChi
       const h = applyHealRate(target.hp, _kStat, _kRate);
       const tgtSide = attackerIsSelf ? 'enemy' : 'ally';
       const {healed: _kaiseiH, remainHp: _kaiseiRH} = applyHeal(target, h, st, tgtSide);
-      if (_kaiseiH > 0) (st._pendingPostAttackLogs = st._pendingPostAttackLogs||[]).push({cls:'log-heal', msg:`  回生(${target.name}) ダメ受け→+${_kaiseiH.toLocaleString()}（残${_kaiseiRH.toLocaleString()}）`});
+      if (_kaiseiH > 0) {
+        (st._pendingPostAttackLogs = st._pendingPostAttackLogs||[]).push({cls:'log-heal', msg:`  回生(${target.name}) ダメ受け→+${_kaiseiH.toLocaleString()}（残${_kaiseiRH.toLocaleString()}）`});
+        if (st._pendingMizuLog) { st._pendingPostAttackLogs.push(st._pendingMizuLog); st._pendingMizuLog = null; }
+      }
     }
   }
 
@@ -343,6 +346,7 @@ function dealDmg(st, target, dmg, attacker, attackerIsSelf, isMelee=false, isChi
           cls: 'log-heal',
           msg: `  同気連枝(${st._doukiHolder.name}→${target.name}) 回復+${_dkH.toLocaleString()}（残${_dkRH.toLocaleString()}）`
         });
+        if (st._pendingMizuLog) { st._pendingPostAttackLogs.push(st._pendingMizuLog); st._pendingMizuLog = null; }
       }
     }
   }
@@ -516,6 +520,7 @@ function applyDoTDmg(st, target, dmg, targetIsSelf, isMelee=false, isChi=true) {
       const h = applyHealRate(target.hp, _kStat, _kRate);
       const {healed: _kH, remainHp: _kRH} = applyHeal(target, h, st, targetIsSelf ? 'ally' : 'enemy');
       if (_kH > 0) addLog(st, 'log-heal', `  回生(${target.name}) ダメ受け→+${_kH.toLocaleString()}（残${_kRH.toLocaleString()}）`);
+      flushMizuLog(st);
     }
   }
 
@@ -533,11 +538,22 @@ function applyHeal(target, h, st=null, side=null) {
   if (healable <= 0) return { healed: 0, remainHp: target.hp };
   target.injured -= healable;
   target.hp = Math.min(target.maxHp - (target.dead || 0), target.hp + healable);
-  // 水の如し: 1T1度の回復時に奇策確率+5%
+  // 水の如し: 1T1度の回復時に奇策確率+5%（回復ログの後に出すため保留）
   if (st && side && target.fixed?.name === '水の如し' && !target._mizuHealedThisTurn) {
     target._mizuHealedThisTurn = true;
     target.kiryakuRate = Math.min(1.0, (target.kiryakuRate || 0) + 0.05);
-    addLog(st, side === 'ally' ? 'log-ally' : 'log-enemy', `  水の如し(${target.name}) 回復→奇策+5%（計${Math.round(target.kiryakuRate*100)}%）`);
+    st._pendingMizuLog = {
+      cls: side === 'ally' ? 'log-ally' : 'log-enemy',
+      msg: `  水の如し(${target.name}) 回復→奇策+5%（計${Math.round(target.kiryakuRate*100)}%）`
+    };
   }
   return { healed: healable, remainHp: target.hp };
+}
+
+// 回復ログの直後に水の如し奇策ログを出力するフラッシュ関数
+function flushMizuLog(st) {
+  if (st?._pendingMizuLog) {
+    addLog(st, st._pendingMizuLog.cls, st._pendingMizuLog.msg);
+    st._pendingMizuLog = null;
+  }
 }
