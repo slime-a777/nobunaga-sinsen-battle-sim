@@ -377,6 +377,22 @@ function dealDmg(st, target, dmg, attacker, attackerIsSelf, isMelee=false, isChi
     }
   }
 
+  // 文武両道: 計略ダメ与時に武勇+30（最大5回）、兵刃ダメ与時に知略+30（最大5回）
+  if (finalDmg > 0 && attacker.hp > 0) {
+    const _hasBunbu = attacker.slots?.some(s=>s?.name==='文武両道') || attacker.fixed?.name==='文武両道';
+    if (_hasBunbu) {
+      if (isChi && (attacker._bunbuBuStack||0) < 5) {
+        attacker._bunbuBuStack = (attacker._bunbuBuStack||0) + 1;
+        attacker.bu = (attacker.bu||100) + 30;
+        (st._pendingPostAttackLogs = st._pendingPostAttackLogs||[]).push({cls:'log-buff', msg:`  文武両道(${attacker.name}) 計略与ダメ→武勇+30 [${attacker._bunbuBuStack}スタック]（武勇${Math.round(attacker.bu)}）`});
+      } else if (isMelee && (attacker._bunbuChiStack||0) < 5) {
+        attacker._bunbuChiStack = (attacker._bunbuChiStack||0) + 1;
+        attacker.chi = (attacker.chi||100) + 30;
+        (st._pendingPostAttackLogs = st._pendingPostAttackLogs||[]).push({cls:'log-buff', msg:`  文武両道(${attacker.name}) 兵刃与ダメ→知略+30 [${attacker._bunbuChiStack}スタック]（知略${Math.round(attacker.chi)}）`});
+      }
+    }
+  }
+
   // 城盗り: 計略ダメージを与えた時、対象に城盗りフラグがあれば追加計略106%を発動
   if (isChi && finalDmg > 0 && target._shiroFlag && target._shiroAttacker?.hp > 0) {
     const shiroAtk = target._shiroAttacker;
