@@ -34,8 +34,10 @@ function applyHealRate(hp, depStat, rate) {
 // ─ 会心チェック（兵刃ダメージ後に適用）
 function applyCrit(dmg, me) {
   if ((me?.critRate||0) > 0 && Math.random() < me.critRate) {
+    if (me) me._critLastHit = true;
     return { val: Math.round(dmg * (1 + (me.critBonus||0.3))), label:'★会心' };
   }
+  if (me) me._critLastHit = false;
   return { val: dmg, label:'' };
 }
 // ─ 奇策チェック（計略ダメージ後に適用）

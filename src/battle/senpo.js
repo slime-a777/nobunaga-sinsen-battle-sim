@@ -1332,6 +1332,33 @@ function execFixed(st, me, isSelf, advMult, isTaisho=false, typeFilter=null) {
     }
   }
 
+  // 金鼓連天（浅井長政/稲葉一鉄・スロット）active: 3T間 能動与ダメ+48%・突撃被ダメ-25%（1T後再発動可）
+  else if (f.name === '金鼓連天') {
+    me._kinkoT = 3;
+    addLog(st, isSelf?'log-ally':'log-enemy', `  [${isSelf?'自':'敵'}] 金鼓連天(${me.name}): 3T間 能動与ダメ+48%・突撃被ダメ-25%`);
+  }
+  // 剛毅果断（甘利虎泰・スロット）active: 3T間 突撃与ダメ+35%・能動被ダメ-20%（1T後再発動可）
+  else if (f.name === '剛毅果断') {
+    me._goukiT = 3;
+    addLog(st, isSelf?'log-ally':'log-enemy', `  [${isSelf?'自':'敵'}] 剛毅果断(${me.name}): 3T間 突撃与ダメ+35%・能動被ダメ-20%`);
+  }
+  // 奪気（仙石権兵衛・スロット）active: 敵2名の強化効果2個解除＋3T間 自身の知略+28
+  else if (f.name === '奪気') {
+    const logS = isSelf?'log-ally':'log-enemy';
+    const targets = opp.filter(o=>o.hp>0).sort(()=>Math.random()-0.5).slice(0,2);
+    targets.forEach(t => {
+      const removed = removeBuffs(t, 2);
+      if (removed.length > 0) {
+        addLog(st, logS, `  [${isSelf?'自':'敵'}] 奪気(${me.name}→${t.name}): 強化解除[${removed.join('・')}]`);
+      } else {
+        addLog(st, logS, `  [${isSelf?'自':'敵'}] 奪気(${me.name}→${t.name}): 解除対象なし`);
+      }
+    });
+    me._dakiChiT = 3; me._dakiChiBuf = 28;
+    me.chi = (me.chi||100) + 28;
+    addLog(st, logS, `  奪気(${me.name}): 3T間 知略+28（現在${Math.round(me.chi)}）`);
+  }
+
   // 固有戦法ダメージ後のpendingログをフラッシュ（回生・城盗りなど）
   (st._pendingPostAttackLogs||[]).forEach(({cls, msg}) => addLog(st, cls, msg));
   st._pendingPostAttackLogs = [];
@@ -2132,6 +2159,25 @@ function execSlot(st, sk, me, isSelf, advMult, typeFilter=null) {
   } else if (n==='全力戦闘') {
     // 実際の70%連撃はturn.jsの行動前チェックで処理。ここではT5初回ログのみ
     if (st.turn === 5) addLog(st,'log-buff',`  全力戦闘(${me.name}): T5以降 連撃70%付与 開始`);
+  } else if (n==='金鼓連天') {
+    me._kinkoT = 3;
+    addLog(st, logSide, `  [${side}] 金鼓連天(${me.name}): 3T間 能動与ダメ+48%・突撃被ダメ-25%`);
+  } else if (n==='剛毅果断') {
+    me._goukiT = 3;
+    addLog(st, logSide, `  [${side}] 剛毅果断(${me.name}): 3T間 突撃与ダメ+35%・能動被ダメ-20%`);
+  } else if (n==='奪気') {
+    const _dakiOpp = opp.filter(o=>o.hp>0).sort(()=>Math.random()-0.5).slice(0,2);
+    _dakiOpp.forEach(t => {
+      const removed = removeBuffs(t, 2);
+      if (removed.length > 0) {
+        addLog(st, logSide, `  [${side}] 奪気(${me.name}→${t.name}): 強化解除[${removed.join('・')}]`);
+      } else {
+        addLog(st, logSide, `  [${side}] 奪気(${me.name}→${t.name}): 解除対象なし`);
+      }
+    });
+    me._dakiChiT = 3; me._dakiChiBuf = 28;
+    me.chi = (me.chi||100) + 28;
+    addLog(st, logSide, `  奪気(${me.name}): 3T間 知略+28（現在${Math.round(me.chi)}）`);
   }
   // 戦法ダメージ後のpendingログをフラッシュ（回生・城盗りなど）
   (st._pendingPostAttackLogs||[]).forEach(({cls, msg}) => addLog(st, cls, msg));

@@ -334,7 +334,10 @@ function processTurn(st, advMult) {
             }
           }
         }
-        let dmgBase = baseDmg(me.bu, tgt.to, me.hp);
+        const _hasSatsumaJyu = me.slots?.some(s=>s?.name==='薩摩鉄砲兵') || me.fixed?.name==='薩摩鉄砲兵';
+        let dmgBase = _hasSatsumaJyu
+          ? baseDmg(me.chi, tgt.chi, me.hp) * 1.40
+          : baseDmg(me.bu, tgt.to, me.hp);
         // 兵種有利：自軍有利なら自軍×advMult、敵軍×(2-advMult)（例: 1.15→0.85）
         dmgBase *= isSelf ? advMult : (2.0 - advMult);
         dmgBase *= (me.buff_atkDmg||1.0);
@@ -352,9 +355,12 @@ function processTurn(st, advMult) {
         if (effectiveCritRate > 0 && Math.random() < effectiveCritRate) {
           dmgBase *= (1 + (me.critBonus||0.5)); critLabel = ' ★会心';
           me._critThisTurn = true;
+          me._critLastHit = true;
+        } else {
+          me._critLastHit = false;
         }
         const _preHP = tgt.hp;
-        const fin = dealDmg(st, tgt, Math.round(dmgBase * rand4()), me, isSelf, true);
+        const fin = dealDmg(st, tgt, Math.round(dmgBase * rand4()), me, isSelf, !_hasSatsumaJyu, _hasSatsumaJyu);
         // 表裏比興リアクション: 混乱対象の初回通常攻撃で発動（ログは攻撃ログの後に出力）
         // 敵軍(A)攻撃→攻撃されたAの武将(tgt)を回復90% / 自軍誤爆(B)→攻撃されたBの武将(tgt)に計略90%
         if (me._hyouriReaction && !me._hyouriReaction.used) {
@@ -624,10 +630,12 @@ function processTurn(st, advMult) {
 
       // 突撃戦法を1回実行するヘルパー
       const doStrike = () => {
+        st._isStrikeSkill = true;
         execFixed(st, me, isSelf, advMult, idx === 0, ['strike']);
         (me.slots||[]).forEach(sk => {
           if (sk) execSlot(st, sk, me, isSelf, advMult, ['strike']);
         });
+        st._isStrikeSkill = false;
       };
       // 反撃者の突撃戦法を発動するヘルパー（反撃は通常攻撃扱いのため）
       const doCounterStrike = (ctr) => {
@@ -1065,6 +1073,18 @@ function processTurn(st, advMult) {
       if (me._kyuyo1T) { me._kyuyo1T = false; me.kyuyoRate = 0; }
       // 無想掃討: 兵刃与ダメ+50% タイマー
       if ((me._musouBufT||0) > 0) { me._musouBufT--; if (me._musouBufT <= 0) me._musouBufRate = 0; }
+      // 金鼓連天: 能動与ダメ+48%・突撃被ダメ-25% タイマー
+      if ((me._kinkoT||0) > 0) { me._kinkoT--; if (me._kinkoT <= 0) addLog(st,'log-info',`  金鼓連天バフ消失(${me.name})`); }
+      // 剛毅果断: 突撃与ダメ+35%・能動被ダメ-20% タイマー
+      if ((me._goukiT||0) > 0) { me._goukiT--; if (me._goukiT <= 0) addLog(st,'log-info',`  剛毅果断バフ消失(${me.name})`); }
+      // 奪気: 知略+28 タイマー
+      if ((me._dakiChiT||0) > 0) {
+        me._dakiChiT--;
+        if (me._dakiChiT <= 0 && (me._dakiChiBuf||0) > 0) {
+          me.chi = Math.max(0, (me.chi||100) - me._dakiChiBuf); me._dakiChiBuf = 0;
+          addLog(st,'log-info',`  奪気知略バフ消失(${me.name}): 知略-28（現在${Math.round(me.chi)}）`);
+        }
+      }
       // 夢幻泡影: 与ダメ+15% タイマー
       if ((me._mugenBufT||0) > 0) { me._mugenBufT--; if (me._mugenBufT <= 0) me._mugenBufRate = 0; }
       // 風林火山【風】: 兵刃与ダメ+22% タイマー
