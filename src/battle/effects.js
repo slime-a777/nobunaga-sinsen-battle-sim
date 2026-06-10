@@ -32,6 +32,28 @@ function purify(unit, n) {
   return cleared; // 解除した状態名の配列
 }
 
+// 強化解除：対象からバフ効果をn個解除する（奪気等で使用）
+function removeBuffs(unit, n) {
+  const candidates = [
+    { key:'tesseki',        label:'鉄壁',       clear: u => { u.tesseki = 0; } },
+    { key:'dousatsu',       label:'洞察',       clear: u => { u.dousatsu = 0; } },
+    { key:'_musouBufT',     label:'無想掃討',   clear: u => { u._musouBufT = 0; u._musouBufRate = 0; } },
+    { key:'_mugenBufT',     label:'夢幻泡影',   clear: u => { u._mugenBufT = 0; u._mugenBufRate = 0; } },
+    { key:'_rakkaAktBufT',  label:'落花啼鳥',   clear: u => { u._rakkaAktBufT = 0; u._rakkaAktBufRate = 0; } },
+    { key:'_kinkoT',        label:'金鼓連天',   clear: u => { u._kinkoT = 0; } },
+    { key:'_goukiT',        label:'剛毅果断',   clear: u => { u._goukiT = 0; } },
+    { key:'_shuusuiBufT',   label:'秋水一色',   clear: u => { u._shuusuiBufT = 0; u._shuusuiBuf = 0; } },
+    { key:'_rekirikiCritT', label:'会心上昇',   clear: u => { u.critRate = Math.max(0, (u.critRate||0) - 0.50); u._rekirikiCritT = 0; } },
+  ];
+  const cleared = [];
+  for (const d of candidates) {
+    if (cleared.length >= n) break;
+    const v = unit[d.key];
+    if (v && v > 0) { d.clear(unit); cleared.push(d.label); }
+  }
+  return cleared;
+}
+
 // 制御効果付与ヘルパー：洞察中なら無効化
 function tryCtrl(target, apply, label, st) {
   if ((target.dousatsu||0) > 0) {
@@ -163,6 +185,22 @@ function dealDmg(st, target, dmg, attacker, attackerIsSelf, isMelee=false, isChi
   // 諸行無常デバフ: 攻撃者の与ダメ-56%（T4以降）
   if ((attacker._shogyoDebufT||0) > 0) {
     _atkDebufRates.push(0.56); _atkModLabels.push(`諸行無常-56%`);
+  }
+  // 金鼓連天: 攻撃者の能動与ダメ+48%
+  if (st._isActiveSkill && (attacker._kinkoT||0) > 0) {
+    _atkBuffRates.push(0.48); _atkModLabels.push(`金鼓連天+48%`);
+  }
+  // 金鼓連天: 対象の突撃被ダメ-25%
+  if (st._isStrikeSkill && (target._kinkoT||0) > 0) {
+    _atkDebufRates.push(0.25); _atkModLabels.push(`金鼓連天防御-25%`);
+  }
+  // 剛毅果断: 攻撃者の突撃与ダメ+35%
+  if (st._isStrikeSkill && (attacker._goukiT||0) > 0) {
+    _atkBuffRates.push(0.35); _atkModLabels.push(`剛毅果断+35%`);
+  }
+  // 剛毅果断: 対象の能動被ダメ-20%
+  if (st._isActiveSkill && (target._goukiT||0) > 0) {
+    _atkDebufRates.push(0.20); _atkModLabels.push(`剛毅果断防御-20%`);
   }
   // 気勢衝天: 兵刃/計略最高者に与ダメ-30%（武勇依存）
   if (!isChi && attacker.kiseiDebufBu) {
@@ -377,6 +415,15 @@ function dealDmg(st, target, dmg, attacker, attackerIsSelf, isMelee=false, isChi
     }
   }
 
+  // 破竹の勢い: 会心ダメを与えるたびに会心ダメ率+5%（最大10スタック）
+  if (finalDmg > 0 && attacker.hp > 0 && attacker._critLastHit && attacker.fixed?.name === '破竹の勢い') {
+    if ((attacker._pakuStack||0) < 10) {
+      attacker._pakuStack = (attacker._pakuStack||0) + 1;
+      attacker.critBonus = (attacker.critBonus||0.5) + 0.05;
+      (st._pendingPostAttackLogs = st._pendingPostAttackLogs||[]).push({cls:'log-buff', msg:`  破竹の勢い(${attacker.name}) 会心与ダメ→会心ダメ率+5% [${attacker._pakuStack}スタック]（現在${Math.round(attacker.critBonus*100)}%）`});
+    }
+  }
+
   // 文武両道: 計略ダメ与時に武勇+30（最大5回）、兵刃ダメ与時に知略+30（最大5回）
   if (finalDmg > 0 && attacker.hp > 0) {
     const _hasBunbu = attacker.slots?.some(s=>s?.name==='文武両道') || attacker.fixed?.name==='文武両道';
@@ -563,6 +610,9 @@ function applyDoTDmg(st, target, dmg, targetIsSelf, isMelee=false, isChi=true) {
 // 戻り値: { healed: 回復量, remainHp: 回復後のHP }
 function applyHeal(target, h, st=null, side=null) {
   if (target.healBlock) return { healed: 0, remainHp: target.hp };
+  // 血戦奮闘: 被回復+60%
+  const _hasKessen = target.slots?.some(s=>s?.name==='血戦奮闘') || target.fixed?.name==='血戦奮闘';
+  if (_hasKessen) h = Math.round(h * 1.60);
   // 境目奮戦等: 回復効果低下
   const _reduceRate = target._healReduceRate || 0;
   const effectiveH = _reduceRate > 0 ? Math.round(h * (1 - _reduceRate)) : h;
