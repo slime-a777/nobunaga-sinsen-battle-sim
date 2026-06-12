@@ -494,6 +494,18 @@ function execFixed(st, me, isSelf, advMult, isTaisho=false, typeFilter=null) {
       addLog(st, 'log-buff', `  先陣鼓舞: ${a2.name} 固有発動率+16%(2T)`);
     }
   }
+  // 瓢箪の下（仙石権兵衛）敵1名 兵刃205%（暫定実装：詳細効果データ未取得のため単体兵刃で近似）
+  else if (f.name === '瓢箪の下') {
+    const logS = isSelf ? 'log-ally' : 'log-enemy';
+    const t = pickTarget(opp);
+    if (t) {
+      const d = applyRate(baseDmg(me.bu, t.to, me.hp), 205);
+      const cr = applyCrit(d, me);
+      const actualDmg = dealDmg(st, t, cr.val, me, isSelf, true, false);
+      addLog(st, logS, `  [${isSelf?'自':'敵'}] 瓢箪の下(${me.name}→${t.name}) 兵刃[${actualDmg.toLocaleString()}]${cr.label}（残${t.hp.toLocaleString()}）${st._lastMods||''}`);
+      st._lastMods = '';
+    }
+  }
   // 信義貫徹ログ（湖北仁義は別ハンドラで処理済み）
   // 夜叉美濃（原虎胤）受動型: 被ダメ-35%（実処理はdealDmg内の追加チェックで行う）
   // ─ 簡易固有戦法（パターン系）
@@ -1400,6 +1412,11 @@ function execSlot(st, sk, me, isSelf, advMult, typeFilter=null) {
       if ((me._reitetsuBuf||0) > 0) { prob = Math.min(1.0, prob + me._reitetsuBuf); _probBoosts.push(`冷徹無情+${Math.round(me._reitetsuBuf*100)}%`); }
       // 越後流軍学: 能動発動率+20%
       if ((me._echigoActBoost||0) > 0) { prob = Math.min(1.0, prob + me._echigoActBoost); _probBoosts.push(`越後流軍学+${Math.round(me._echigoActBoost*100)}%`); }
+      // 甲斐弓騎兵: 1番目スロットの能動戦法発動率+8%（準備戦法は+12%）
+      if ((me._kaiKiActBoost||0) > 0 && me.slots?.[0] === sk) {
+        const _kkB = sk.prep ? (me._kaiKiPrepBoost||0.12) : me._kaiKiActBoost;
+        prob = Math.min(1.0, prob + _kkB); _probBoosts.push(`甲斐弓騎兵+${Math.round(_kkB*100)}%`);
+      }
       // 撹乱: 能動発動時に計略152%を受ける
       if ((me._kakuranT||0) > 0) {
         const _kakuranOpp = isSelf ? st.enemy : st.ally;

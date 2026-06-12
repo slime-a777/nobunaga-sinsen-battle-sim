@@ -198,6 +198,31 @@ function initState(build) {
     addLog(st,'log-buff',`  三河弓兵隊(開戦前): ${side==='ally'?'味方':'敵'}全軍統率+20・回生3T付与`);
   });
 
+  // 母衣武者：全軍速度+20、通常攻撃ごとに対象の被ダメ+3%（速度依存・最大5回）。前田利家装備時は基本3.5%
+  ['ally','enemy'].forEach(side => {
+    const holder = st[side].find(b => b.slots?.some(s => s?.name === '母衣武者') || b.fixed?.name === '母衣武者');
+    if (!holder) return;
+    const baseRate = holder.name === '前田利家' ? 0.035 : 0.03;
+    const rate = baseRate * statScale(holder.spd || 100);
+    st[side].forEach(t => {
+      t.spd = (t.spd || 100) + 20;
+      t._horoAtkRate = rate;
+    });
+    addLog(st,'log-buff',`  母衣武者(開戦前): ${side==='ally'?'味方':'敵'}全軍速度+20・通常攻撃ごとに対象被ダメ+${(rate*100).toFixed(1)}%（最大5回）`);
+  });
+
+  // 甲斐弓騎兵：自軍全体の1番目スロット能動戦法発動率+8%（準備戦法は+12%）。一条信龍装備時は速度依存
+  ['ally','enemy'].forEach(side => {
+    const holder = st[side].find(b => b.slots?.some(s => s?.name === '甲斐弓騎兵') || b.fixed?.name === '甲斐弓騎兵');
+    if (!holder) return;
+    const scale = holder.name === '一条信龍' ? statScale(holder.spd || 100) : 1.0;
+    st[side].forEach(t => {
+      t._kaiKiActBoost  = 0.08 * scale;
+      t._kaiKiPrepBoost = 0.12 * scale;
+    });
+    addLog(st,'log-buff',`  甲斐弓騎兵(開戦前): ${side==='ally'?'味方':'敵'}全軍1番目能動発動率+${Math.round(8*scale)}%（準備戦法+${Math.round(12*scale)}%）`);
+  });
+
   // 僧兵：全軍兵刃被ダメ-20%×statScale(統率)
   ['ally','enemy'].forEach(side => {
     const holder = st[side].find(b => b.slots?.some(s => s?.name === '僧兵'));

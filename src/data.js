@@ -47,7 +47,7 @@ const SENPO_DB = {
   五里霧中:  {name:'五里霧中',type:'active',prob:.35,prep:true,kind:'制御',desc:'準備1T後、敵2名に混乱2T付与（女性：被ダメ+6%追加）'},
   赤備え隊:  {name:'赤備え隊',type:'passive',prob:1.0,kind:'兵種',desc:'騎兵→赤備え隊進化。自軍全体が会心35%獲得'},
   三河弓兵隊:{name:'三河弓兵隊',type:'passive',prob:1.0,kind:'兵種',desc:'弓兵→三河弓兵隊進化。統率+20＋自軍全体に回生付与'},
-  母衣武者:  {name:'母衣武者',type:'passive',prob:1.0,kind:'兵種',desc:'騎兵→母衣武者進化。速度+20＋通常攻撃ごとに敵の被ダメ+3%'},
+  母衣武者:  {name:'母衣武者',type:'passive',prob:1.0,kind:'兵種',desc:'騎兵→母衣武者進化。自軍全体速度+20＋通常攻撃ごとに対象の被ダメ+3%（速度依存・最大5回）。前田利家装備時3.5%'},
   文武両道:  {name:'文武両道',type:'passive',prob:1.0,kind:'バフ',desc:'計略ダメごとに武勇+30（最大5回）、兵刃ダメごとに知略+30（最大5回）'},
   奇謀独断:  {name:'奇謀独断',type:'active',prob:.35,prep:true,kind:'制御',desc:'準備1T後、敵2名に無策2T付与'},
   剛毅果断:  {name:'剛毅果断',type:'active',prob:.40,kind:'バフ',desc:'3T間、突撃戦法与ダメ+35%＋能動戦法被ダメ-20%（1T後再発動可）'},
@@ -74,6 +74,7 @@ const SENPO_DB = {
   薩摩鉄砲兵:{name:'薩摩鉄砲兵',type:'passive',prob:1.0,kind:'兵種',desc:'鉄砲→薩摩鉄砲兵進化。通常攻撃を計略攻撃に転換し基本ダメ+40%'},
   鉄砲僧兵:  {name:'鉄砲僧兵',type:'passive',prob:1.0,kind:'兵種',desc:'鉄砲→鉄砲僧兵進化。統率・知略+12。1/2/5/6T目に休養48%付与'},
   大太刀力士隊:{name:'大太刀力士隊',type:'passive',prob:1.0,kind:'兵種',desc:'足軽→大太刀力士隊進化。被通攻時30%で反撃100%。T2まで通攻・突撃被ダメ-18%'},
+  僧兵:      {name:'僧兵',type:'passive',prob:1.0,kind:'兵種',desc:'足軽→僧兵進化。自軍全体の兵刃被ダメ-20%（統率依存）'},
   // ─ A新規伝授戦法
   回山倒海:  {name:'回山倒海',type:'strike',prob:.35,kind:'兵刃+デバフ',desc:'通攻後 敵1名 兵刃104%＋潰走2T（94%/T）'},
   槍弾正:    {name:'槍弾正',type:'active',prob:.35,kind:'兵刃+制御',desc:'敵1名 兵刃172%＋無策1T'},
@@ -179,7 +180,7 @@ const BUSHO_DEF = {
   '甘利虎泰':{fixed:{name:'剛の武者',type:'strike',prob:.35,kind:'兵刃',desc:'通攻後、対象に兵刃246%＋2T間、対象の計略与ダメ-75%デバフ付与'},slots:['剛毅果断','一行三昧'],chi:94,bu:176,to:163,spd:59,role:'攻撃'},
   '毛利隆元':{fixed:{name:'一心一徳',type:'active',prob:.50,kind:'回復',desc:'自軍2〜3名を回復60%＋1T間、休養76%付与'},slots:['草木皆兵','有備無患'],chi:165,bu:110,to:150,spd:90,role:'補助',approx:true},
   '蜂須賀小六':{fixed:{name:'楼岸一番',type:'strike',prob:.40,kind:'兵刃/計略',desc:'通攻後、対象に武勇/知略高い方168%。1T間、対象の与ダメ-30%（HP50%超の場合は2T）'},slots:['嚢沙之計','一行三昧'],chi:173,bu:166,to:126,spd:79,role:'攻撃'},
-  '仙石権兵衛':{fixed:{name:'瓢箪の下',type:'active',prob:.40,kind:'兵刃',desc:'豊臣系の兵刃アタッカー戦法'},slots:['奪気','一行三昧'],chi:130,bu:150,to:140,spd:110,role:'攻撃',approx:true},
+  '仙石権兵衛':{fixed:{name:'瓢箪の下',type:'active',prob:.40,kind:'兵刃',desc:'敵1名に兵刃205%（暫定実装：詳細効果データ未取得のため単体兵刃で近似）'},slots:['奪気','一行三昧'],chi:130,bu:150,to:140,spd:110,role:'攻撃',approx:true},
   // ═══ S2シーズン追加 ═══
   '山県昌景':{fixed:{name:'武田之赤備',type:'passive',kind:'バフ',desc:'常時会心20%。毎T行動後に25%で赤備え突撃（敵単体に兵刃138%＋統率-15%2T）'},slots:['縦横馳突','御旗楯無'],chi:169,bu:190,to:184,spd:108,role:'攻撃'},
   '黒田官兵衛':{fixed:{name:'水の如し',type:'passive',kind:'計略',desc:'奇策確率+5%（常時）＋60%で敵1体に計略88%(1〜2回)'},slots:['知者楽水','草木皆兵'],chi:229,bu:114,to:167,spd:68,role:'計略'},
