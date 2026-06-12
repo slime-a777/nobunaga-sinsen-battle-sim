@@ -263,6 +263,11 @@ function dealDmg(st, target, dmg, attacker, attackerIsSelf, isMelee=false, isChi
   if ((target._jubai||0) > 0) {
     _atkBuffRates.push(target._jubai); _atkModLabels.push(`十面埋伏+${Math.round(target._jubai*100)}%`);
   }
+  // 母衣武者: 通常攻撃スタックによる被ダメ増加（最大5回重ねがけ）
+  if ((target._horoStack||0) > 0) {
+    const _horoR = target._horoStack * (target._horoStackRate||0.03);
+    _atkBuffRates.push(_horoR); _atkModLabels.push(`母衣武者+${Math.round(_horoR*100)}%`);
+  }
   // 大智不智: 防御側の兵刃被ダメ+20%（2T）
   if (isMelee && (target._daichiBuDebuf||0) > 0) {
     _atkBuffRates.push(target._daichiBuDebuf); _atkModLabels.push(`大智不智+${Math.round(target._daichiBuDebuf*100)}%`);

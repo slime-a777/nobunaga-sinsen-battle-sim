@@ -401,6 +401,12 @@ function processTurn(st, advMult) {
           if (tgt.slots?.some(s=>s?.name==='沈魚落雁') || tgt.fixed?.name==='沈魚落雁') {
             _chingyoPending.push({ attacker: me, defender: tgt });
           }
+          // 母衣武者: 通常攻撃を与えるたびに対象の被ダメ増加スタック（最大5回）
+          if ((me._horoAtkRate||0) > 0 && tgt.hp > 0 && (tgt._horoStack||0) < 5) {
+            tgt._horoStack = (tgt._horoStack||0) + 1;
+            tgt._horoStackRate = me._horoAtkRate;
+            addLog(st, 'log-ctrl', `  母衣武者: ${tgt.name} 被ダメ+${(tgt._horoStack*me._horoAtkRate*100).toFixed(1)}%（${tgt._horoStack}/5重）`);
+          }
           // 古今独歩: 通常攻撃被弾時48%で反撃（突撃・乱舞・連撃も発動可）＋離反4%獲得
           if (tgt.fixed?.name === '古今独歩' && Math.random() < 0.48) {
             const cBase = baseDmg(tgt.bu, me.to, tgt.hp);
