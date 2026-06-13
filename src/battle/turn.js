@@ -214,13 +214,15 @@ function processTurn(st, advMult) {
       if (_oppArr.length) {
         const _maxBu  = _oppArr.reduce((a,b)=>(b.bu>a.bu?b:a), _oppArr[0]);
         const _maxChi = _oppArr.reduce((a,b)=>(b.chi>a.chi?b:a), _oppArr[0]);
+        // 武勇依存の実効デバフ率を算出（effects.js の気勢衝天計算に準拠）
+        const _kiseiPct = Math.round(Math.min(1, 0.30 * statScale(st.kiseiBu||100)) * 100);
         if (Math.random() < 0.80) {
           _maxBu.kiseiDebufBu = true;
-          addLog(st,'log-ctrl',`  気勢衝天(${me.name}): ${_maxBu.name} 兵刃与ダメ-30%`);
+          addLog(st,'log-ctrl',`  気勢衝天(${me.name}): ${_maxBu.name} 兵刃与ダメ-${_kiseiPct}%`);
         }
         if (Math.random() < 0.80) {
           _maxChi.kiseiDebufChi = true;
-          addLog(st,'log-ctrl',`  気勢衝天(${me.name}): ${_maxChi.name} 計略与ダメ-30%`);
+          addLog(st,'log-ctrl',`  気勢衝天(${me.name}): ${_maxChi.name} 計略与ダメ-${_kiseiPct}%`);
         }
       }
     }

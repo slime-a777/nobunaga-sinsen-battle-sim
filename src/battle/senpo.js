@@ -2540,21 +2540,29 @@ function execCommand(st, me, isSelf, isTaisho=false) {
         addLog(st,'log-ctrl',`  罵詈雑言(${me.name}): 敵2〜3名に挑発3T(90%)＋自身被ダメ50%軽減`);
       } else if (sk.name==='深慮遠謀') {
         opp.filter(o=>o.hp>0).slice(0,2).forEach(t=>{ t._shintyo = 3; t._shintyo_chi = me.chi; });
-        addLog(st,'log-ctrl',`  深慮遠謀(${me.name}): 敵2名 与ダメ-28%(3T)`);
+        // 知略依存の実効デバフ率を算出（effects.js の深慮遠謀計算に準拠）
+        const _shintyoPct = Math.round(Math.min(1, 0.28 * statScale(me.chi||100)) * 100);
+        addLog(st,'log-ctrl',`  深慮遠謀(${me.name}): 敵2名 与ダメ-${_shintyoPct}%(3T)`);
       } else if (sk.name==='知者楽水') {
         // 自軍全体で「知略>武勇」の武将が多いか多数決で判定
         const _aliveAll = allies.filter(a=>a.hp>0);
         const _chiMajority = _aliveAll.filter(a=>(a.chi||100)>(a.bu||100)).length * 2 > _aliveAll.length;
         _aliveAll.slice(0,2).forEach(a=>{ a._chiryaku = 3; a._chiryaku_to = me.to; a._chiryaku_chiHigher = _chiMajority; });
-        addLog(st,'log-buff',`  知者楽水(${me.name}): 自軍2名 被ダメ軽減(${_chiMajority?'兵刃24%・計略18%':'計略24%・兵刃18%'}・統率依存)+与ダメ-5%(3T)`);
+        // 統率依存の実効軽減率を算出（effects.js の知者楽水防御計算に準拠）
+        const _chiScale = statScale(me.to||100);
+        const _r24 = Math.round(0.24 * _chiScale * 100);
+        const _r18 = Math.round(0.18 * _chiScale * 100);
+        addLog(st,'log-buff',`  知者楽水(${me.name}): 自軍2名 被ダメ軽減(${_chiMajority?`兵刃${_r24}%・計略${_r18}%`:`計略${_r24}%・兵刃${_r18}%`}・統率依存)+与ダメ-5%(3T)`);
       } else if (sk.name==='気勢衝天') {
         st.kiseiSide = isSelf ? 'ally' : 'enemy';
         st.kiseiTurns = 4;
         st.kiseiBu = me.bu;
-        addLog(st,'log-ctrl',`  気勢衝天(${me.name}): 武勇・知略最高の敵に与ダメ-30%(4T) ※保持武将の行動時に発動`);
+        const _kiseiPct = Math.round(Math.min(1, 0.30 * statScale(me.bu||100)) * 100);
+        addLog(st,'log-ctrl',`  気勢衝天(${me.name}): 武勇・知略最高の敵に与ダメ-${_kiseiPct}%(4T) ※保持武将の行動時に発動`);
       } else if (sk.name==='一領具足') {
         st.ichiryo = { turns: 4, side: isSelf ? 'ally' : 'enemy', bu: me.bu, to: me.to };
-        addLog(st,'log-buff',`  一領具足(${me.name}): T1〜2 自軍全体 被ダメ-12%(武勇依存) / T3〜4 全体に傭兵付与(統率依存)`);
+        const _ichiryoPct = Math.round(Math.min(24, 12 * statScale(me.bu||100)));
+        addLog(st,'log-buff',`  一領具足(${me.name}): T1〜2 自軍全体 被ダメ-${_ichiryoPct}%(武勇依存) / T3〜4 全体に傭兵付与(統率依存)`);
       } else if (sk.name==='参謀の助言') {
         const gain = Math.round(28 * statScale(me.chi||100));
         allies.filter(a=>a.hp>0).forEach(a=>{
