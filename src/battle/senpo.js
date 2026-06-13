@@ -1372,7 +1372,7 @@ function execFixed(st, me, isSelf, advMult, isTaisho=false, typeFilter=null) {
   }
 
   // 固有戦法ダメージ後のpendingログをフラッシュ（回生・城盗りなど）
-  (st._pendingPostAttackLogs||[]).forEach(({cls, msg}) => addLog(st, cls, msg));
+  (st._pendingPostAttackLogs||[]).forEach((e) => { const r = e.fn ? e.fn() : e; if (r && r.msg) addLog(st, r.cls, r.msg); });
   st._pendingPostAttackLogs = [];
 }
 
@@ -2197,7 +2197,7 @@ function execSlot(st, sk, me, isSelf, advMult, typeFilter=null) {
     addLog(st, logSide, `  奪気(${me.name}): 3T間 知略+28（現在${Math.round(me.chi)}）`);
   }
   // 戦法ダメージ後のpendingログをフラッシュ（回生・城盗りなど）
-  (st._pendingPostAttackLogs||[]).forEach(({cls, msg}) => addLog(st, cls, msg));
+  (st._pendingPostAttackLogs||[]).forEach((e) => { const r = e.fn ? e.fn() : e; if (r && r.msg) addLog(st, r.cls, r.msg); });
   st._pendingPostAttackLogs = [];
 }
 
