@@ -268,12 +268,14 @@ function initState(build) {
 
   // 疾風迅雷（立花誾千代）: 開戦前にターン毎の発動確率を武勇依存でセット（実発動は保持武将の行動時）
   ['ally','enemy'].forEach(side => {
-    st[side].forEach(u => {
+    st[side].forEach((u, idx) => {
       const has = u.slots?.some(s => s?.name === '疾風迅雷') || u.fixed?.name === '疾風迅雷';
       if (!has) return;
-      u._shippuuRate     = Math.min(1, 0.45 * statScale(u.bu || 100)); // 発動率45%（武勇依存）
-      u._shippuuMukuRate = Math.min(1, 0.50 * statScale(u.bu || 100)); // 麻痺付与率50%（武勇依存）
-      addLog(st, 'log-buff', `  疾風迅雷(${u.name}): 毎T${Math.round(u._shippuuRate*100)}%（武勇依存）で敵2名に兵刃76%・${Math.round(u._shippuuMukuRate*100)}%で麻痺1T付与（行動時発動）`);
+      u._shippuuRate       = Math.min(1, 0.45 * statScale(u.bu || 100)); // 発動率45%（武勇依存）
+      u._shippuuMukuRate   = Math.min(1, 0.50 * statScale(u.bu || 100)); // 麻痺付与率50%（武勇依存）
+      u._shippuuTaishoRate = Math.min(1, 0.16 * statScale(u.bu || 100)); // 大将技：麻痺中の敵がいた場合の追撃発動率16%（武勇依存）
+      const _taishoNote = (idx === 0) ? `・大将技：対象が麻痺中なら${Math.round(u._shippuuTaishoRate*100)}%で別の敵1名に追撃` : '';
+      addLog(st, 'log-buff', `  疾風迅雷(${u.name}): 毎T${Math.round(u._shippuuRate*100)}%（武勇依存）で敵2名に兵刃76%・${Math.round(u._shippuuMukuRate*100)}%で麻痺1T付与（行動時発動）${_taishoNote}`);
     });
   });
 
