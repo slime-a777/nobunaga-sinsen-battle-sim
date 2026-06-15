@@ -274,7 +274,7 @@ function readBuild() {
       const activeTraits = traits.filter(([cv]) => cv <= convex).map(([,tn]) => tn);
 
       // 個人特性効果を集計
-      let buMult=1, chiMult=1, toMult=1;
+      let buMult=1, chiMult=1, toMult=1, spdMult=1;
       let buAtkMult=1, chiAtkMult=1, atkMult=1;
       let buDefReduce=0, chiDefReduce=0, defReduce=0;
       let critAdd=0, critBonusAdd=0, kiryakuAdd=0, kiryakuBonusAdd=0;
@@ -286,6 +286,7 @@ function readBuild() {
         if (fx.buMult)          buMult         *= (1 + fx.buMult);
         if (fx.chiMult)         chiMult        *= (1 + fx.chiMult);
         if (fx.toMult)          toMult         *= (1 + fx.toMult);
+        if (fx.spdMult)         spdMult        *= (1 + fx.spdMult);
         if (fx.buAtkMult)       buAtkMult      *= (1 + fx.buAtkMult);
         if (fx.chiAtkMult)      chiAtkMult     *= (1 + fx.chiAtkMult);
         if (fx.atkMult)         atkMult        *= (1 + fx.atkMult);
@@ -306,7 +307,7 @@ function readBuild() {
       });
 
       unitData.push({ name, def, s1, s2, convex, activeTraits,
-        buMult, chiMult, toMult, buAtkMult, chiAtkMult, atkMult,
+        buMult, chiMult, toMult, spdMult, buAtkMult, chiAtkMult, atkMult,
         buDefReduce, chiDefReduce, defReduce,
         critAdd, critBonusAdd, kiryakuAdd, kiryakuBonusAdd,
         tAtk, tChiAtk, tBuAtk, tBuDef, tChiDef, tDef, tTo,
@@ -333,7 +334,7 @@ function readBuild() {
         chi: Math.round((def.chi + u.ptChi + u.eqChi) * u.chiMult * fb * tlm),
         bu:  Math.round((def.bu  + u.ptBu  + u.eqBu)  * u.buMult  * fb * tlm),
         to:  Math.round((def.to  + u.ptTo  + u.eqTo)  * u.toMult  * (1 + sumTo) * fb * tlm),
-        spd: Math.round(((def.spd || 0) + u.ptSpd + u.eqSpd) * tlm),
+        spd: Math.round(((def.spd || 0) + u.ptSpd + u.eqSpd) * u.spdMult * tlm),
         hp: 10000, maxHp: 10000,
         role: def.role, fixed: def.fixed,
         slots: [s1, s2].map(s => SENPO_DB[s]).filter(Boolean),

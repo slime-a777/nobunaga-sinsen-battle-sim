@@ -340,10 +340,15 @@ const TRAIT_EFFECTS = {
   '武威Ⅰ':   { buMult: 0.02 },
   '武威Ⅱ':   { buMult: 0.025 },
   '武威Ⅲ':   { buMult: 0.03 },
+  '知恵Ⅰ':   { chiMult: 0.02 },
   '知恵Ⅱ':   { chiMult: 0.025 },
   '知恵Ⅲ':   { chiMult: 0.03 },
   '統帥Ⅰ':   { toMult: 0.02 },
   '統帥Ⅱ':   { toMult: 0.025 },
+  '統帥Ⅲ':   { toMult: 0.03 },
+  // 個人速度系（行動順・風林火山の旗判定・速度依存効果に影響）
+  '急速Ⅱ':   { spdMult: 0.025 },
+  '急速Ⅲ':   { spdMult: 0.03 },
   // 個人攻撃系
   '知謀Ⅰ':   { chiAtkMult: 0.026 },
   '知謀Ⅱ':   { chiAtkMult: 0.033 },
@@ -355,6 +360,7 @@ const TRAIT_EFFECTS = {
   '破敵Ⅲ':   { atkMult: 0.02 },
   // 個人防御系
   '防護Ⅱ':   { buDefReduce: 0.022 },
+  '防護Ⅲ':   { buDefReduce: 0.028 },
   '牢固Ⅰ':   { defReduce: 0.012 },
   '牢固Ⅱ':   { defReduce: 0.016 },
   '牢固Ⅲ':   { defReduce: 0.02 },
@@ -372,16 +378,22 @@ const TRAIT_EFFECTS = {
   // 全体攻撃系
   '攻勢Ⅰ':   { teamAtkMult: 0.01 },
   '攻勢Ⅱ':   { teamAtkMult: 0.013 },
+  '攻勢Ⅲ':   { teamAtkMult: 0.016 },
   '四州の雄': { teamBuAtkMult: 0.06 },
   '謀攻Ⅱ':   { teamChiAtkMult: 0.03 },
   '謀攻Ⅲ':   { teamChiAtkMult: 0.037 },
   '猛攻Ⅰ':   { teamBuAtkMult: 0.014 },
   '猛攻Ⅱ':   { teamBuAtkMult: 0.018 },
+  '猛攻Ⅲ':   { teamBuAtkMult: 0.025 },
   // 全体防御系
   '固守Ⅱ':   { teamBuDefReduce: 0.018 },
+  '固守Ⅲ':   { teamBuDefReduce: 0.022 },
+  '堅固Ⅰ':   { teamChiDefReduce: 0.023 },
   '堅固Ⅱ':   { teamChiDefReduce: 0.03 },
   '堅固Ⅲ':   { teamChiDefReduce: 0.037 },
   '守勢Ⅰ':   { teamDefReduce: 0.01 },
+  '守勢Ⅱ':   { teamDefReduce: 0.013 },
+  '守勢Ⅲ':   { teamDefReduce: 0.016 },
   '人は城':   { teamToMult: 0.05 },
 };
 
