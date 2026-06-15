@@ -111,6 +111,11 @@ function dealDmg(st, target, dmg, attacker, attackerIsSelf, isMelee=false, isChi
   }
 
   let finalDmg = dmg;
+  // 兵種有利/不利（全ダメージに適用）
+  const _adv = st.advMult || 1.0;
+  if (_adv !== 1.0) {
+    finalDmg = Math.round(finalDmg * (attackerIsSelf ? _adv : (2.0 - _adv)));
+  }
   // バフ/デバフ修正をまとめて記録するリスト { label, pct }
   const mods = [];
   const applyMod = (label, newVal) => {
@@ -568,6 +573,11 @@ function applyDoTDmg(st, target, dmg, targetIsSelf, isMelee=false, isChi=true) {
   }
 
   let finalDmg = dmg;
+  // 兵種有利/不利（targetIsSelf=trueなら敵が発生源）
+  const _dotAdv = st.advMult || 1.0;
+  if (_dotAdv !== 1.0) {
+    finalDmg = Math.round(finalDmg * (targetIsSelf ? (2.0 - _dotAdv) : _dotAdv));
+  }
   const mods = [];
   const applyMod = (label, newVal) => {
     if (newVal === finalDmg) return;
