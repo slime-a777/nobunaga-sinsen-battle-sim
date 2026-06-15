@@ -761,8 +761,8 @@ function execFixed(st, me, isSelf, advMult, isTaisho=false, typeFilter=null) {
       addLog(st, 'log-buff', `  諏訪の光(${a.name}): 武勇+36・統率+36`);
     });
   }
-  // 陣前無我（佐久間信盛）active
-  else if (f.name === '陣前無我') {
+  // 退き佐久間（佐久間信盛）active ※旧名「陣前無我」
+  else if (f.name === '退き佐久間' || f.name === '陣前無我') {
     const logS = isSelf ? 'log-ally' : 'log-enemy';
     const alliesLive = allies.filter(a=>a.hp>0);
     const minHpUnit = alliesLive.length ? alliesLive.reduce((a,b)=>a.hp<b.hp?a:b) : null;
@@ -773,13 +773,13 @@ function execFixed(st, me, isSelf, advMult, isTaisho=false, typeFilter=null) {
       const meIdx = myTeam.indexOf(me);
       opp.filter(o=>o.hp>0).slice(0, cnt).forEach(t => {
         tryCtrl(t, u=>{ u._kensei = true; }, '牽制', st);
-        addLog(st, 'log-ctrl', `  陣前無我: ${t.name}に牽制1T付与`);
+        addLog(st, 'log-ctrl', `  退き佐久間: ${t.name}に牽制1T付与`);
       });
     } else {
       // 自己回復258%（統率依存）
       const h = applyHealRate(me.hp, me.to, 258);
       const {healed:_ah, remainHp:_rh} = applyHeal(me, h, st, isSelf?'ally':'enemy');
-      if (_ah > 0) addLog(st, 'log-heal', `  陣前無我(${me.name}) 自己回復+${_ah.toLocaleString()}（残${_rh.toLocaleString()}）`);
+      if (_ah > 0) addLog(st, 'log-heal', `  退き佐久間(${me.name}) 自己回復+${_ah.toLocaleString()}（残${_rh.toLocaleString()}）`);
       flushMizuLog(st);
     }
   }
@@ -854,19 +854,19 @@ function execFixed(st, me, isSelf, advMult, isTaisho=false, typeFilter=null) {
       addLog(st, 'log-buff', `  湖水渡り(${a.name}): 奇策+65%(2T)付与`);
     });
   }
-  // 勇志不抜（高力清長）active
-  else if (f.name === '勇志不抜') {
+  // 仏の高力（高力清長）active ※旧名「勇志不抜」
+  else if (f.name === '仏の高力' || f.name === '勇志不抜') {
     const logS = isSelf ? 'log-ally' : 'log-enemy';
     const isHighHp = me.hp > me.maxHp * 0.5;
     const buGain = isHighHp ? 75 : 100;
     const reneGain = isHighHp ? 0.24 : 0.32;
     me.bu = (me.bu||100) + buGain;
     me.renegadeRate = Math.min(1.0, (me.renegadeRate||0) + reneGain);
-    addLog(st, 'log-buff', `  勇志不抜(${me.name}): 武勇+${buGain}・離反+${Math.round(reneGain*100)}%`);
+    addLog(st, 'log-buff', `  仏の高力(${me.name}): 武勇+${buGain}・離反+${Math.round(reneGain*100)}%`);
     const buffTargets = allies.filter(a=>a.hp>0&&a!==me).slice(0,2);
     buffTargets.forEach(a => {
       a._yuushiBeiT = Math.max(a._yuushiBeiT||0, 2);
-      addLog(st, 'log-buff', `  勇志不抜: ${a.name} 被ダメ-20%(2T)付与`);
+      addLog(st, 'log-buff', `  仏の高力: ${a.name} 被ダメ-20%(2T)付与`);
     });
   }
   // 傲岸不遜（斎藤義龍）active
@@ -1142,15 +1142,15 @@ function execFixed(st, me, isSelf, advMult, isTaisho=false, typeFilter=null) {
       if (t.hp>0) tryCtrl(t,u=>{u.musaku=Math.max(u.musaku||0,1);},'無策',st);
     }
   }
-  // 無想掃討（榊原康政）active: 敵1名 兵刃102%＋50%で別の敵1名 兵刃102%＋兵刃与ダメ+50% 2T
-  else if (f.name === '無想掃討') {
+  // 無想掃射（榊原康政）active: 敵1名 兵刃102%＋50%で別の敵1名 兵刃102%＋兵刃与ダメ+50% 2T ※旧名「無想掃討」
+  else if (f.name === '無想掃射' || f.name === '無想掃討') {
     const logS = isSelf?'log-ally':'log-enemy';
     st._isActiveSkill = true;
     const t1 = pickTarget(opp);
     if (t1) {
       const cr1 = applyCrit(applyRate(baseDmg(me.bu,t1.to,me.hp),102), me);
       const a1 = dealDmg(st,t1,cr1.val,me,isSelf,true,false);
-      addLog(st,logS,`  [${isSelf?'自':'敵'}] 無想掃討(${me.name}→${t1.name}) 兵刃[${a1.toLocaleString()}]${cr1.label}（残${t1.hp.toLocaleString()}）${st._lastMods||''}`);
+      addLog(st,logS,`  [${isSelf?'自':'敵'}] 無想掃射(${me.name}→${t1.name}) 兵刃[${a1.toLocaleString()}]${cr1.label}（残${t1.hp.toLocaleString()}）${st._lastMods||''}`);
       st._lastMods='';
       if (Math.random() < 0.50) {
         const others = opp.filter(o=>o.hp>0&&o!==t1);
@@ -1158,7 +1158,7 @@ function execFixed(st, me, isSelf, advMult, isTaisho=false, typeFilter=null) {
         if (t2) {
           const cr2 = applyCrit(applyRate(baseDmg(me.bu,t2.to,me.hp),102), me);
           const a2 = dealDmg(st,t2,cr2.val,me,isSelf,true,false);
-          addLog(st,logS,`  無想掃討(追加)(${me.name}→${t2.name}) 兵刃[${a2.toLocaleString()}]${cr2.label}（残${t2.hp.toLocaleString()}）${st._lastMods||''}`);
+          addLog(st,logS,`  無想掃射(追加)(${me.name}→${t2.name}) 兵刃[${a2.toLocaleString()}]${cr2.label}（残${t2.hp.toLocaleString()}）${st._lastMods||''}`);
           st._lastMods='';
         }
       }
@@ -1166,7 +1166,7 @@ function execFixed(st, me, isSelf, advMult, isTaisho=false, typeFilter=null) {
     st._isActiveSkill = false;
     // 兵刃与ダメ+50% 2T（先行した武将数で低下: ここでは簡略化）
     me._musouBufT = 2; me._musouBufRate = 0.50;
-    addLog(st,'log-buff',`  無想掃討(${me.name}): 兵刃与ダメ+50%(2T)獲得`);
+    addLog(st,'log-buff',`  無想掃射(${me.name}): 兵刃与ダメ+50%(2T)獲得`);
   }
   // 啄木鳥（山本勘助）active: 敵1名 計略156%＋武勇最高友軍も兵刃160%＋35%で威圧1T
   else if (f.name === '啄木鳥') {
@@ -2426,7 +2426,7 @@ function execCommand(st, me, isSelf, isTaisho=false) {
         addLog(st,'log-ctrl',`  末世の道者(${maxBuA.name}): 武勇-${loss}（10%低下）`);
       }
     }
-    // 諸行無常（瑞溪院）: T1〜3: 与ダメ+24% / T4以降: 与ダメ-56%
+    // 諸行無常（瑞渓院）: T1〜3: 与ダメ+24% / T4以降: 与ダメ-56%
     if (f.name === '諸行無常') {
       const myTeamArr = isSelf ? st.ally : st.enemy;
       const oppArr = isSelf ? st.enemy : st.ally;
