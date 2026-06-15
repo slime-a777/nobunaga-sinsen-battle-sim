@@ -121,7 +121,7 @@ function initUnit(b) {
     _matsuActBoost: 0,
     // 末世の道者（大内義隆）
     _sueoAtkBufChi: false,
-    // 諸行無常（瑞溪院）
+    // 諸行無常（瑞渓院）
     _shogyoAtkBuf: 0, _shogyoDebufT: 0,
     // 献身（仙桃院）
     _kensinT: 0, _kensinSelfDebuf: false,
