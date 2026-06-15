@@ -333,7 +333,7 @@ function readBuild() {
         chi: Math.round((def.chi + u.ptChi + u.eqChi) * u.chiMult * fb * tlm),
         bu:  Math.round((def.bu  + u.ptBu  + u.eqBu)  * u.buMult  * fb * tlm),
         to:  Math.round((def.to  + u.ptTo  + u.eqTo)  * u.toMult  * (1 + sumTo) * fb * tlm),
-        spd: Math.round(((def.spd || 0) + u.ptSpd + u.eqSpd) * u.spdMult * tlm),
+        spd: Math.round(((def.spd || 0) + u.ptSpd + u.eqSpd) * u.spdMult * fb * tlm),
         hp: 10000, maxHp: 10000,
         role: def.role, fixed: def.fixed,
         slots: [s1, s2].map(s => SENPO_DB[s]).filter(Boolean),
