@@ -266,6 +266,17 @@ function initState(build) {
     });
   });
 
+  // 疾風迅雷（立花誾千代）: 開戦前にターン毎の発動確率を武勇依存でセット（実発動は保持武将の行動時）
+  ['ally','enemy'].forEach(side => {
+    st[side].forEach(u => {
+      const has = u.slots?.some(s => s?.name === '疾風迅雷') || u.fixed?.name === '疾風迅雷';
+      if (!has) return;
+      u._shippuuRate     = Math.min(1, 0.45 * statScale(u.bu || 100)); // 発動率45%（武勇依存）
+      u._shippuuMukuRate = Math.min(1, 0.50 * statScale(u.bu || 100)); // 麻痺付与率50%（武勇依存）
+      addLog(st, 'log-buff', `  疾風迅雷(${u.name}): 毎T${Math.round(u._shippuuRate*100)}%（武勇依存）で敵2名に兵刃76%・${Math.round(u._shippuuMukuRate*100)}%で麻痺1T付与（行動時発動）`);
+    });
+  });
+
   // ─ 固有特性の初期設定（常時効果・条件付きステータス補正） ─
   ['ally','enemy'].forEach(side => {
     const team = st[side];

@@ -2347,33 +2347,7 @@ function execCommand(st, me, isSelf, isTaisho=false) {
       st._gokiSide = isSelf ? 'ally' : 'enemy';
       if (st.turn === 1) addLog(st, 'log-buff', `  剛毅木訥(${me.name}): 友軍保護+反撃86%・回復86%（以降継続）`);
     }
-    // 疾風迅雷（立花誾千代）: 毎ターン45%で敵2名 兵刃76%
-    if (f.name === '疾風迅雷') {
-      if (Math.random() < 0.45) {
-        const logS = isSelf ? 'log-ally' : 'log-enemy';
-        const _oppArr = isSelf ? st.enemy : st.ally;
-        _oppArr.filter(o=>o.hp>0).slice(0,2).forEach(t=>{
-          const d = applyRate(baseDmg(me.bu, t.to, me.hp), 76);
-          const cr = applyCrit(d, me);
-          const actualDmg = dealDmg(st, t, cr.val, me, isSelf, true, false);
-          addLog(st, logS, `  [${isSelf?'自':'敵'}] 疾風迅雷(${me.name}→${t.name}) 兵刃[${actualDmg.toLocaleString()}]${cr.label}（残${t.hp.toLocaleString()}）${st._lastMods||''}`);
-          st._lastMods = '';
-          if ((t.muku||0) > 0) {
-            // 既に麻痺中: 自軍1名回復96%
-            const a2 = pickTarget(isSelf?st.ally:st.enemy);
-            if (a2) {
-              const h = applyHealRate(me.hp, me.bu, 96);
-              const {healed:_ah,remainHp:_rh} = applyHeal(a2,h,st,isSelf?'ally':'enemy');
-              if (_ah>0) addLog(st,'log-heal',`  疾風迅雷(麻痺中): ${a2.name} 回復+${_ah.toLocaleString()}（残${_rh.toLocaleString()}）`);
-              flushMizuLog(st);
-            }
-          } else if (Math.random() < 0.50) {
-            tryCtrl(t, u=>{ u.muku = Math.max(u.muku||0, 1); }, '麻痺', st);
-            addLog(st, 'log-ctrl', `  疾風迅雷: ${t.name} 麻痺1T付与`);
-          }
-        });
-      }
-    }
+    // 疾風迅雷（立花誾千代）: 開戦前に武勇依存の発動確率をセットし、実発動は保持武将の行動時（turn.js）で処理
     // 樽俎折衝（伊達輝宗）: 毎ターン30%×statScale(to)で封撃/無策+肩代わり
     if (f.name === '樽俎折衝') {
       if (Math.random() < Math.min(1.0, 0.30 * statScale(me.to||100))) {
