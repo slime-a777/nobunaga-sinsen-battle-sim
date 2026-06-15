@@ -276,7 +276,10 @@ function processTurn(st, advMult) {
     // 疾風迅雷: 保持武将の行動時に発動（発動率は開戦前に武勇依存でセット済み）
     const _shippuuHolder = me.slots?.some(s=>s?.name==='疾風迅雷') || me.fixed?.name==='疾風迅雷';
     if (_shippuuHolder && me.hp > 0 && Math.random() < (me._shippuuRate || 0)) {
-      opp.filter(o=>o.hp>0).slice(0,2).forEach(t=>{
+      const _shippuuHit = new Set();
+      // 1体分の発動処理。対象が既に麻痺状態だったか（=回復が発生する条件）を返す。
+      const _shippuuStrike = (t) => {
+        _shippuuHit.add(t);
         // 対象が麻痺状態かを命中前に判定する。
         // muku は対象の行動時に消化されるため、誾千代が対象より速い場合は付与した麻痺1Tが
         // 同ターン中に消化され次の命中時には muku=0 になる。実ゲームの「前ターンに付与した麻痺が
@@ -304,7 +307,21 @@ function processTurn(st, advMult) {
             addLog(st, 'log-ctrl', `  疾風迅雷: ${t.name} 麻痺1T付与`);
           }
         }
+        return _wasParalyzed;
+      };
+      let _anyParalyzed = false;
+      opp.filter(o=>o.hp>0).slice(0,2).forEach(t=>{
+        if (_shippuuStrike(t)) _anyParalyzed = true;
       });
+      // 大将技（idx===0 が大将）: 対象が既に麻痺状態だった場合、8%→16%（武勇依存）で
+      // 既に攻撃した敵以外の別の敵軍単体にもう1回この戦法を発動する（重複発動不可＝追撃からの再追撃なし）。
+      if (idx === 0 && _anyParalyzed && Math.random() < (me._shippuuTaishoRate || 0)) {
+        const _extra = opp.find(o => o.hp > 0 && !_shippuuHit.has(o));
+        if (_extra) {
+          addLog(st, logSide, `  ${sideLabel} 疾風迅雷【大将技】麻痺中の敵を確認 → ${_extra.name} に追撃発動！`);
+          _shippuuStrike(_extra);
+        }
+      }
     }
 
     // 電光雷轟の1ターン1回制限フラグをリセット
