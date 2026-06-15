@@ -54,6 +54,9 @@ const _src = `
   _exportRef.applyRate = applyRate;
   _exportRef.applyHeal = applyHeal;
   _exportRef.purify    = purify;
+  _exportRef.dealDmg   = dealDmg;
+  _exportRef.tryCtrl   = tryCtrl;
+  _exportRef.hasTrait  = hasTrait;
 `;
 
 try {
@@ -64,7 +67,7 @@ try {
   process.exit(1);
 }
 
-const { SENPO_DB, execSlot, execFixed, baseDmg, applyRate, applyHeal } = _exportRef;
+const { SENPO_DB, execSlot, execFixed, baseDmg, applyRate, applyHeal, dealDmg, tryCtrl, hasTrait } = _exportRef;
 
 // ─ テストユーティリティ
 function resetDmgLog() { _dmgLog.length = 0; }
@@ -631,6 +634,75 @@ test('勇猛無比 — 再発動が最大2回まで', () => {
   // random=0 → 全判定成功: 初回122% + 再発動1回目96% + 再発動2回目96% = 3ヒット
   _withRandom(0, () => { execSlot(st, SENPO_DB['勇猛無比'], me, true, 1.0); });
   assert(_dmgLog.filter(d => d.isMelee).length >= 2, `勇猛無比: 少なくとも2ヒット期待(初回+再発動1回)`);
+});
+
+// ── カテゴリ: 固有特性チェック ──────────
+section('固有特性チェック');
+
+test('越後の龍 — _echiryuActive時に被ダメ-22%', () => {
+  const me = makeUnit({ name: '攻撃役' });
+  const tgt = makeUnit({ name: '謙信', activeTraits: ['越後の龍'], _echiryuActive: true });
+  const st = makeState([me], [tgt]);
+  let dealt;
+  _withRandom(0.5, () => { dealt = dealDmg(st, tgt, 1000, me, true, true, false); });
+  assertEqual(dealt, 780, '越後の龍: 1000→780 (-22%)');
+});
+
+test('三河武士 — 次回被ダメ-50%を1回だけ消費', () => {
+  const me = makeUnit({ name: '攻撃役' });
+  const tgt = makeUnit({ name: '家康', _mikawaBushiReduce: true });
+  const st = makeState([me], [tgt]);
+  let d1, d2;
+  _withRandom(0.5, () => { d1 = dealDmg(st, tgt, 1000, me, true, true, false); });
+  assertEqual(d1, 500, '三河武士: 1000→500 (-50%)');
+  assertEqual(tgt._mikawaBushiReduce, false, '三河武士: フラグが消費される');
+  _withRandom(0.5, () => { d2 = dealDmg(st, tgt, 1000, me, true, true, false); });
+  assertEqual(d2, 1000, '三河武士: 2回目は軽減なし');
+});
+
+test('鳳凰 — 3T目以降の致命ダメージを無効化', () => {
+  const me = makeUnit({ name: '攻撃役' });
+  const tgt = makeUnit({ name: '半兵衛', hp: 500, activeTraits: ['鳳凰'] });
+  const st = makeState([me], [tgt]); st.turn = 3;
+  let d;
+  _withRandom(0.5, () => { d = dealDmg(st, tgt, 1000, me, true, true, false); });
+  assertEqual(d, 0, '鳳凰: 致命ダメージ無効化で0');
+  assertEqual(tgt.hp, 500, '鳳凰: HPが変化しない');
+  assertEqual(tgt._houhouFatalUsed, true, '鳳凰: 使用済みフラグが立つ');
+});
+
+test('老功古実 — 初回能動被弾で攻撃者の知略-15（1回のみ）', () => {
+  const me = makeUnit({ name: '攻撃役', chi: 200 });
+  const tgt = makeUnit({ name: '定満', activeTraits: ['老功古実'] });
+  const st = makeState([me], [tgt]); st._isActiveSkill = true;
+  _withRandom(0.5, () => { dealDmg(st, tgt, 1000, me, true, false, true); });
+  assertEqual(me.chi, 185, '老功古実: 知略200→185');
+  assertEqual(tgt._roukouUsed, true, '老功古実: 使用済みフラグが立つ');
+  _withRandom(0.5, () => { dealDmg(st, tgt, 1000, me, true, false, true); });
+  assertEqual(me.chi, 185, '老功古実: 2回目は知略が変化しない');
+});
+
+test('傾奇者 — 12%で制御を無効化', () => {
+  const tgt = makeUnit({ name: '慶次', activeTraits: ['傾奇者'] });
+  const st = makeState([makeUnit()], [tgt]);
+  let a1, a2;
+  _withRandom(0.05, () => { a1 = tryCtrl(tgt, u => { u.confused = 1; }, '混乱', st); });
+  assertEqual(a1, false, '傾奇者: rand0.05<0.12で無効化');
+  assertEqual(tgt.confused || 0, 0, '傾奇者: 混乱が付与されない');
+  _withRandom(0.9, () => { a2 = tryCtrl(tgt, u => { u.confused = 1; }, '混乱', st); });
+  assertEqual(a2, true, '傾奇者: rand0.9なら制御は通る');
+});
+
+test('義の将 — 混乱のみ30%回避', () => {
+  const st = makeState();
+  const tgt = makeUnit({ name: '謙信', activeTraits: ['義の将'] });
+  let a1;
+  _withRandom(0.1, () => { a1 = tryCtrl(tgt, u => { u.confused = 1; }, '混乱', st); });
+  assertEqual(a1, false, '義の将: rand0.1<0.30で混乱を回避');
+  const tgt2 = makeUnit({ name: '謙信2', activeTraits: ['義の将'] });
+  let a2;
+  _withRandom(0.1, () => { a2 = tryCtrl(tgt2, u => { u.muku = 1; }, '麻痺', st); });
+  assertEqual(a2, true, '義の将: 混乱以外は通常通り付与される');
 });
 
 const RESET  = '\x1b[0m';

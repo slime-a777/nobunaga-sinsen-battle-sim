@@ -116,8 +116,7 @@ function buildTraitHtml(name, convex) {
   if (!traits.length) return '<span style="color:#aaa">特性データなし</span>';
   return traits.map(([cv, tname]) => {
     const active = cv <= convex;
-    const fx = TRAIT_EFFECTS[tname];
-    const hasFx = !!fx;
+    const hasFx = isCombatTrait(tname);
     const color = active ? (hasFx ? '#5c1a00' : '#444') : '#aaa';
     const bg = active && hasFx ? 'rgba(201,166,74,.15)' : 'transparent';
     const mark = active ? (hasFx ? '⚡' : '✓') : '○';

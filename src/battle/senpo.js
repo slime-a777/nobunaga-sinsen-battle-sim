@@ -63,6 +63,7 @@ function execFixed(st, me, isSelf, advMult, isTaisho=false, typeFilter=null) {
           fprob = Math.min(1.0, fprob + 0.12); _fboosts.push('一上一下+12%');
         }
         if ((me._matsuActBoost||0) > 0) { fprob = Math.min(1.0, fprob + me._matsuActBoost); _fboosts.push(`松柏之操+${Math.round(me._matsuActBoost*100)}%`); }
+        if (!me._hitByNormalThisTurn && hasTrait(me,'威勢Ⅱ')) { fprob = Math.min(1.0, fprob + 0.028); _fboosts.push('威勢Ⅱ+2.8%'); }
         if (Math.random() > fprob) return;
         if (_fboosts.length > 0) addLog(st, 'log-ctrl', `  発動率ブースト(${me.name}固有): ${Math.round(_fbaseProb*100)}%→${Math.round(fprob*100)}% [${_fboosts.join('、')}]`);
         // 撹乱: 能動発動時に計略152%を受ける
@@ -97,6 +98,7 @@ function execFixed(st, me, isSelf, advMult, isTaisho=false, typeFilter=null) {
     if ((me._reitetsuBuf||0)>0) { _prob=Math.min(1,_prob+me._reitetsuBuf); _boosts.push(`冷徹無情+${Math.round(me._reitetsuBuf*100)}%`); }
     if ((me._echigoActBoost||0)>0) { _prob=Math.min(1,_prob+me._echigoActBoost); _boosts.push(`越後流軍学+${Math.round(me._echigoActBoost*100)}%`); }
     if ((f._probBonus||0)>0) { _prob=Math.min(1,_prob+f._probBonus); _boosts.push(`固有率ボーナス+${Math.round(f._probBonus*100)}%`); }
+    if (!me._hitByNormalThisTurn && hasTrait(me,'威勢Ⅱ')) { _prob=Math.min(1,_prob+0.028); _boosts.push('威勢Ⅱ+2.8%'); }
     if (Math.random() > _prob) return;
     if (_boosts.length > 0) addLog(st, 'log-ctrl', `  発動率ブースト(${me.name}固有): ${Math.round(_baseP*100)}%→${Math.round(_prob*100)}% [${_boosts.join('、')}]`);
     // 撹乱: 能動発動時に計略152%を受ける
@@ -1416,6 +1418,11 @@ function execSlot(st, sk, me, isSelf, advMult, typeFilter=null) {
       if ((me._kaiKiActBoost||0) > 0 && me.slots?.[0] === sk) {
         const _kkB = sk.prep ? (me._kaiKiPrepBoost||0.12) : me._kaiKiActBoost;
         prob = Math.min(1.0, prob + _kkB); _probBoosts.push(`甲斐弓騎兵+${Math.round(_kkB*100)}%`);
+      }
+      // 奮戦Ⅱ/Ⅲ: このターン通常攻撃を受けていない場合、非固有能動戦法の発動率+2.5/3%
+      if (!me._hitByNormalThisTurn) {
+        if (hasTrait(me,'奮戦Ⅱ')) { prob = Math.min(1.0, prob + 0.025); _probBoosts.push('奮戦Ⅱ+2.5%'); }
+        if (hasTrait(me,'奮戦Ⅲ')) { prob = Math.min(1.0, prob + 0.030); _probBoosts.push('奮戦Ⅲ+3%'); }
       }
       // 撹乱: 能動発動時に計略152%を受ける
       if ((me._kakuranT||0) > 0) {
