@@ -273,6 +273,40 @@ function processTurn(st, advMult) {
       }
     }
 
+    // 疾風迅雷: 保持武将の行動時に発動（発動率は開戦前に武勇依存でセット済み）
+    const _shippuuHolder = me.slots?.some(s=>s?.name==='疾風迅雷') || me.fixed?.name==='疾風迅雷';
+    if (_shippuuHolder && me.hp > 0 && Math.random() < (me._shippuuRate || 0)) {
+      opp.filter(o=>o.hp>0).slice(0,2).forEach(t=>{
+        // 対象が麻痺状態かを命中前に判定する。
+        // muku は対象の行動時に消化されるため、誾千代が対象より速い場合は付与した麻痺1Tが
+        // 同ターン中に消化され次の命中時には muku=0 になる。実ゲームの「前ターンに付与した麻痺が
+        // 次ターンも継続中に再命中→回復」を再現するため、疾風迅雷で付与した麻痺はターンを記録し、
+        // 翌ターンの命中時も「麻痺中」として扱う（麻痺の持続自体は1Tのまま）。
+        const _wasParalyzed = (t.muku||0) > 0 || (t._shippuuParaTurn === st.turn - 1);
+        const d  = applyRate(baseDmg(me.bu, t.to, me.hp), 76);
+        const cr = applyCrit(d, me);
+        const actualDmg = dealDmg(st, t, cr.val, me, isSelf, true, false);
+        addLog(st, logSide, `  ${sideLabel} 疾風迅雷(${me.name}→${t.name}) 兵刃[${actualDmg.toLocaleString()}]${cr.label}（残${t.hp.toLocaleString()}）${st._lastMods||''}`);
+        st._lastMods = '';
+        if (_wasParalyzed) {
+          // 対象が既に麻痺中: 自軍単体を回復96%（武勇依存）。連続回復を防ぐため持続マークはクリア
+          t._shippuuParaTurn = 0;
+          const a2 = pickTarget(allies);
+          if (a2) {
+            const h = applyHealRate(me.hp, me.bu, 96);
+            const {healed:_ah, remainHp:_rh} = applyHeal(a2, h, st, isSelf?'ally':'enemy');
+            if (_ah > 0) addLog(st,'log-heal',`  疾風迅雷(麻痺中): ${a2.name} 回復+${_ah.toLocaleString()}（残${_rh.toLocaleString()}）`);
+            flushMizuLog(st);
+          }
+        } else if (Math.random() < (me._shippuuMukuRate || 0)) {
+          if (tryCtrl(t, u=>{ u.muku = Math.max(u.muku||0, 1); }, '麻痺', st)) {
+            t._shippuuParaTurn = st.turn; // 翌ターンの回復判定用に付与ターンを記録
+            addLog(st, 'log-ctrl', `  疾風迅雷: ${t.name} 麻痺1T付与`);
+          }
+        }
+      });
+    }
+
     // 電光雷轟の1ターン1回制限フラグをリセット
     me._denkaiDone = false;
     // 武田之赤備: 会心フラグをリセット（毎ターン行動開始時）
