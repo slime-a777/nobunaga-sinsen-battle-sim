@@ -54,10 +54,32 @@ function removeBuffs(unit, n) {
   return cleared;
 }
 
-// 制御効果付与ヘルパー：洞察中なら無効化
+// 制御効果付与ヘルパー：洞察中なら無効化。固有特性による制御耐性もここで判定
 function tryCtrl(target, apply, label, st) {
   if ((target.dousatsu||0) > 0) {
     addLog(st, 'log-buff', `  洞察(${target.name}): 制御無効 [${label}]`);
+    return false;
+  }
+  // 義の将（上杉謙信0凸）: 混乱になる確率低下
+  if (label === '混乱' && hasTrait(target,'義の将') && Math.random() < 0.30) {
+    if (st) addLog(st, 'log-buff', `  義の将(${target.name}): 混乱を回避`);
+    return false;
+  }
+  // 上下一心（北条氏康0凸）: T1の制御耐性で30%無効（一人1回）
+  if (st && st.turn === 1 && (target._johgeResist||0) > 0 && Math.random() < target._johgeResist) {
+    target._johgeResist = 0;
+    addLog(st, 'log-buff', `  上下一心(${target.name}): 制御無効 [${label}]`);
+    return false;
+  }
+  // 先駆け（柿崎景家1凸）: 開始3Tの間、制御を受けた際40%で無効（最大2回）
+  if (st && st.turn <= 3 && hasTrait(target,'先駆け') && (target._sakigakeUsed||0) < 2 && Math.random() < 0.40) {
+    target._sakigakeUsed = (target._sakigakeUsed||0) + 1;
+    addLog(st, 'log-buff', `  先駆け(${target.name}): 制御無効 [${label}]`);
+    return false;
+  }
+  // 傾奇者（前田慶次0凸）: 12%で制御無効
+  if (hasTrait(target,'傾奇者') && Math.random() < 0.12) {
+    if (st) addLog(st, 'log-buff', `  傾奇者(${target.name}): 制御無効 [${label}]`);
     return false;
   }
   apply(target);
@@ -313,6 +335,34 @@ function dealDmg(st, target, dmg, attacker, attackerIsSelf, isMelee=false, isChi
     const _keiReduce = Math.min(0.60, 0.22 * statScale(st._keikaiChi||100));
     _atkDebufRates.push(_keiReduce); _atkModLabels.push(`警戒周到防御-${Math.round(_keiReduce*100)}%`);
   }
+  // ─ 固有特性によるダメージ補正 ─
+  // 謀神（毛利元就）: 計略ダメ時25%で知略差を上乗せ（各戦闘3回まで・知略が上回る場合）
+  if (isChi && hasTrait(attacker,'謀神') && (attacker._boushinCnt||0) < 3
+      && (attacker.chi||0) > (target.chi||0) && Math.random() < 0.25) {
+    attacker._boushinCnt = (attacker._boushinCnt||0) + 1;
+    const _bsR = Math.min(0.50, (attacker.chi - target.chi) * 0.0025); // 知略差をダメ増加率に換算
+    _atkBuffRates.push(_bsR); _atkModLabels.push(`謀神+${Math.round(_bsR*100)}%`);
+  }
+  // 越後の龍（上杉謙信1凸）: 前のターンにダメージを与えていない場合、被ダメ-22%
+  if (hasTrait(target,'越後の龍') && target._echiryuActive) {
+    _atkDebufRates.push(0.22); _atkModLabels.push(`越後の龍-22%`);
+  }
+  // 三河武士（徳川家康0凸）: 通常攻撃後15%で得た「次回被ダメ-50%」を消費
+  if (target._mikawaBushiReduce) {
+    target._mikawaBushiReduce = false;
+    _atkDebufRates.push(0.50); _atkModLabels.push(`三河武士-50%`);
+  }
+  // 虚実（真田昌幸1凸）: 敵軍に混乱状態がいる場合、被ダメ-3%
+  if (hasTrait(target,'虚実')) {
+    const _kyoOpp = attackerIsSelf ? st.ally : st.enemy;
+    if (_kyoOpp.some(u => u.hp > 0 && (u.confused||0) > 0)) {
+      _atkDebufRates.push(0.03); _atkModLabels.push(`虚実-3%`);
+    }
+  }
+  // 鳳凰（竹中半兵衛0凸）: 常時被ダメ+1.5%
+  if (hasTrait(target,'鳳凰')) {
+    _atkBuffRates.push(0.015); _atkModLabels.push(`鳳凰+1.5%`);
+  }
   // 全修正を加算合成して一括適用
   if (_atkBuffRates.length > 0 || _atkDebufRates.length > 0) {
     const _buffNet  = _atkBuffRates.reduce( (acc, r) => acc + r, 0);
@@ -358,12 +408,42 @@ function dealDmg(st, target, dmg, attacker, attackerIsSelf, isMelee=false, isChi
     }
   }
 
+  // 鳳凰（竹中半兵衛0凸）: 3T目以降、初めて致命ダメージを受けた際にそのダメージを無効化
+  if (hasTrait(target,'鳳凰') && !target._houhouFatalUsed && st.turn >= 3 && finalDmg >= target.hp && target.hp > 0) {
+    target._houhouFatalUsed = true;
+    (st._pendingPostAttackLogs = st._pendingPostAttackLogs||[]).push({cls:'log-buff', msg:`  鳳凰(${target.name}): 致命ダメージを無効化`});
+    st._lastMods = '';
+    return 0;
+  }
+
   // 負傷兵・死亡兵の分割（ダメージの9割が負傷、1割が死亡）
   const injuredGain = Math.round(finalDmg * 0.9);
   const deadGain = finalDmg - injuredGain;
   target.injured = (target.injured || 0) + injuredGain;
   target.dead = (target.dead || 0) + deadGain;
   target.hp = Math.max(0, target.hp - finalDmg);
+
+  // 越後の龍: 攻撃者がこのターンにダメージを与えたフラグを記録
+  if (finalDmg > 0 && hasTrait(attacker,'越後の龍')) attacker._dealtDmgThisTurn = true;
+
+  // 老功古実（宇佐美定満0凸）: 初めて能動戦法ダメージを受けた際、発動者の知略-15
+  if (finalDmg > 0 && st._isActiveSkill && hasTrait(target,'老功古実') && !target._roukouUsed && attacker.hp > 0) {
+    target._roukouUsed = true;
+    attacker.chi = Math.max(1, (attacker.chi||100) - 15);
+    (st._pendingPostAttackLogs = st._pendingPostAttackLogs||[]).push({cls:'log-ctrl', msg:`  老功古実(${target.name}): ${attacker.name}の知略-15（現在${Math.round(attacker.chi)}）`});
+  }
+
+  // 方円の器（黒田官兵衛0凸）: 3T目以降、毎ターン初の計略ダメで50%で全軍知略+5（最大2回）
+  if (isChi && finalDmg > 0 && hasTrait(attacker,'方円の器') && st.turn >= 3
+      && !attacker._houenThisTurn && (attacker._houenStacks||0) < 2) {
+    attacker._houenThisTurn = true;
+    if (Math.random() < 0.50) {
+      attacker._houenStacks = (attacker._houenStacks||0) + 1;
+      const _hoTeam = attackerIsSelf ? st.ally : st.enemy;
+      _hoTeam.forEach(a => { if (a.hp > 0) a.chi = (a.chi||100) + 5; });
+      (st._pendingPostAttackLogs = st._pendingPostAttackLogs||[]).push({cls:'log-buff', msg:`  方円の器(${attacker.name}): 全軍知略+5 [${attacker._houenStacks}回目]`});
+    }
+  }
 
   // 離反: 兵刃ダメ与時にダメ量に応じて自回復
   if (isMelee && finalDmg > 0 && attacker.hp > 0 && (attacker.renegadeRate||0) > 0) {

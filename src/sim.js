@@ -89,8 +89,7 @@ function buildTraitSummaryHtml(build) {
     const parts = build[side].map(u => {
       if (!u.activeTraits?.length) return `${u.name}(特性なし)`;
       const traitStr = u.activeTraits.map(tn => {
-        const fx = TRAIT_EFFECTS[tn];
-        return fx ? `<b>${tn}</b>` : tn;
+        return isCombatTrait(tn) ? `<b>${tn}</b>` : tn;
       }).join('・');
       return `${u.name}[${u.convex}凸]:${traitStr}`;
     });

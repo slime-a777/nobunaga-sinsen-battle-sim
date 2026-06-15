@@ -266,6 +266,56 @@ function initState(build) {
     });
   });
 
+  // ─ 固有特性の初期設定（常時効果・条件付きステータス補正） ─
+  ['ally','enemy'].forEach(side => {
+    const team = st[side];
+    team.forEach(u => {
+      if (!u.activeTraits || !u.activeTraits.length) return;
+      // 勇烈（山県昌景1凸）: 毎ターン行動前 武勇+14。常時付与として近似
+      if (hasTrait(u,'勇烈')) {
+        u.bu = (u.bu||100) + 14;
+        addLog(st,'log-buff',`  勇烈(${u.name}): 武勇+14`);
+      }
+      // 無傷の誇り（本多忠勝0凸）・不死身（馬場信春0凸）: 戦闘中の兵力損害低下（被ダメ-3%と近似）
+      if (hasTrait(u,'無傷の誇り') || hasTrait(u,'不死身')) {
+        u.traitDefReduce = (u.traitDefReduce||0) + 0.03;
+        addLog(st,'log-buff',`  ${hasTrait(u,'不死身')?'不死身':'無傷の誇り'}(${u.name}): 被ダメ-3%`);
+      }
+      // 玄謀（黒田官兵衛1凸）: 大将技未使用時に回避3%。常時付与として近似
+      if (hasTrait(u,'玄謀')) {
+        u.evasionRate = Math.max(u.evasionRate||0, 0.03);
+        addLog(st,'log-buff',`  玄謀(${u.name}): 回避3%`);
+      }
+      // 求道（本願寺顕如0凸）: 編成変更できない場合の計略被ダメ-5%を常時適用と近似
+      if (hasTrait(u,'求道')) {
+        u.traitChiDefReduce = (u.traitChiDefReduce||0) + 0.05;
+        addLog(st,'log-buff',`  求道(${u.name}): 計略被ダメ-5%`);
+      }
+    });
+    // 上下一心（北条氏康0凸）: 保持者がいれば自軍2〜3名にT1制御耐性30%
+    if (team.some(u => u.hp>0 && hasTrait(u,'上下一心'))) {
+      const cnt = Math.random() < 0.5 ? 2 : 3;
+      team.filter(u=>u.hp>0).slice(0,cnt).forEach(u => { u._johgeResist = 0.30; });
+      addLog(st,'log-buff',`  上下一心: ${side==='ally'?'味方':'敵'}${cnt}名にT1制御耐性30%`);
+    }
+    // 短刀の契（帰蝶0凸）: 保持者がいれば自軍男性大将の全属性+2%
+    if (team.some(u => u.hp>0 && hasTrait(u,'短刀の契'))) {
+      const taisho = team[0];
+      if (taisho && typeof FEMALE_BUSHO !== 'undefined' && !FEMALE_BUSHO.has(taisho.name)) {
+        ['bu','chi','to','spd'].forEach(k => { taisho[k] = Math.round((taisho[k]||100)*1.02); });
+        addLog(st,'log-buff',`  短刀の契: 男性大将${taisho.name}の全属性+2%`);
+      }
+    }
+    // 三矢家訓（毛利元就1凸）: 保持者がいて自軍3名の主要属性が全て異なる場合、各自の主要属性+8
+    if (team.some(u => hasTrait(u,'三矢家訓'))) {
+      const keys = team.map(u => mainStatKey(u));
+      if (new Set(keys).size === team.length) {
+        team.forEach((u,i) => { u[keys[i]] = (u[keys[i]]||100) + 8; });
+        addLog(st,'log-buff',`  三矢家訓: ${side==='ally'?'味方':'敵'}全員の主要属性+8（属性が全て異なる）`);
+      }
+    }
+  });
+
   return st;
 }
 

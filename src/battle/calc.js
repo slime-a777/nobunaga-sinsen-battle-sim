@@ -18,6 +18,16 @@ function minG(hp){ return Math.max(5, Math.floor(hp/1000)*2); }
 function attrD(x, coef=1.44){ return (0.0005*x*x + 0.9*x + 4.5) * coef; }
 function baseDmg(atkA, defD, atkHp){ return Math.max(minG(atkHp), minG(atkHp)+hpDmg(atkHp)+attrD(atkA-defD)); }
 function statScale(stat) { return Math.max(1, 1 + (stat - 100) * 0.0025); } // 100基準: 200で×1.25, 300で×1.50（各種確率補正に使用）
+
+// ─ 特性判定ヘルパー：ユニットが指定の特性を所持し、凸数条件を満たすか
+function hasTrait(u, name) { return !!(u && u.activeTraits && u.activeTraits.includes(name)); }
+// ─ 主要属性（武勇・知略・統率のうち最大）のキーを返す
+function mainStatKey(u) {
+  const bu = u.bu || 0, chi = u.chi || 0, to = u.to || 0;
+  if (bu >= chi && bu >= to) return 'bu';
+  if (chi >= bu && chi >= to) return 'chi';
+  return 'to';
+}
 function applyRate(base, rate, atkAttr, dep=false){
   let d = base*(rate/100);
   return Math.max(1, Math.round(d*(0.956+Math.random()*0.088)));

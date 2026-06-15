@@ -1,10 +1,32 @@
 // ═══════════════════════════════════════
+// 通常攻撃のターゲット選択（剛猛=被弾率上昇／忍耐=被弾率低下を重みに反映）
+// ═══════════════════════════════════════
+function pickNormalTarget(arr) {
+  const live = arr.filter(a => a.hp > 0);
+  if (!live.length) return null;
+  const weights = live.map(u => {
+    let w = 1;
+    if (hasTrait(u,'剛猛Ⅰ')) w += 0.3;
+    if (hasTrait(u,'剛猛Ⅱ')) w += 0.6;
+    if (hasTrait(u,'剛猛Ⅲ')) w += 1.0;
+    if (hasTrait(u,'忍耐Ⅰ')) w -= 0.2;
+    if (hasTrait(u,'忍耐Ⅱ')) w -= 0.35;
+    if (hasTrait(u,'忍耐Ⅲ')) w -= 0.5;
+    return Math.max(0.1, w);
+  });
+  const total = weights.reduce((a,b)=>a+b, 0);
+  let r = Math.random() * total;
+  for (let i = 0; i < live.length; i++) { r -= weights[i]; if (r <= 0) return live[i]; }
+  return live[live.length-1];
+}
+
+// ═══════════════════════════════════════
 // メインターン処理
 // ═══════════════════════════════════════
 function processTurn(st, advMult) {
   st.turn++;
   // ターン開始時フラグリセット
-  ['ally','enemy'].forEach(side => st[side].forEach(u => { u._mizuHealedThisTurn = false; }));
+  ['ally','enemy'].forEach(side => st[side].forEach(u => { u._mizuHealedThisTurn = false; u._hitByNormalThisTurn = false; }));
   // 行動順プレビュー（速度順）
   const turnOrder = [
     ...st.ally.map((u,i)=>({u,side:'ally',i})),
@@ -327,7 +349,7 @@ function processTurn(st, advMult) {
           tgt = tt?.hp > 0 ? tt : pickTarget(opp);
           if (tgt) addLog(st,'log-ctrl',`  罵詈雑言による挑発: ${me.name}→${tgt.name}に強制攻撃`);
         } else {
-          tgt = pickTarget(opp);
+          tgt = pickNormalTarget(opp);
         }
         if (!tgt) return;
         // 耐苦鍛錬（千坂景親）大将援護: T3まで 敵が大将に攻撃→30%で千坂が代わりに受ける
@@ -341,6 +363,11 @@ function processTurn(st, advMult) {
               tgt = _takidaHolder2;
             }
           }
+        }
+        // 清濁併呑（松永久秀0凸）: 25%で受ける通常攻撃を無効化
+        if (hasTrait(tgt,'清濁併呑') && Math.random() < 0.25) {
+          addLog(st, logSide, `  ${sideLabel} ${me.name}→${tgt.name} 通常攻撃 → 清濁併呑により無効化`);
+          return;
         }
         const _hasSatsumaJyu = me.slots?.some(s=>s?.name==='薩摩鉄砲兵') || me.fixed?.name==='薩摩鉄砲兵';
         let dmgBase = _hasSatsumaJyu
@@ -399,6 +426,7 @@ function processTurn(st, advMult) {
           }
         }
         if (fin > 0) {
+          tgt._hitByNormalThisTurn = true;
           addLog(st, logSide, `  ${sideLabel} ${me.name}→${tgt.name} ${label} [${fin.toLocaleString()}]${critLabel}（残${Math.max(0, _preHP - fin).toLocaleString()}）${st._lastMods||''}`);
           st._lastMods = '';
           (st._pendingPostAttackLogs||[]).forEach((e) => { const r = e.fn ? e.fn() : e; if (r && r.msg) addLog(st, r.cls, r.msg); });
@@ -620,6 +648,67 @@ function processTurn(st, advMult) {
               }
             }
           }
+          // ─ 固有特性: 通常攻撃ヒット後の発動（攻撃側） ─
+          // 波風（明智光秀1凸）: 80%で対象の知略を2吸収（最大10回）
+          if (hasTrait(me,'波風') && (me._namikazeCnt||0) < 10 && tgt.hp > 0 && Math.random() < 0.80) {
+            me._namikazeCnt = (me._namikazeCnt||0) + 1;
+            tgt.chi = Math.max(1, (tgt.chi||100) - 2);
+            me.chi = (me.chi||100) + 2;
+            addLog(st, logSide, `  波風(${me.name}): ${tgt.name}の知略2吸収 [${me._namikazeCnt}/10]`);
+          }
+          // 赤備え（飯富虎昌・山県昌景0凸）: 初回通常攻撃後、対象の統率-18
+          if (hasTrait(me,'赤備え') && !me._akazonaeDone && tgt.hp > 0) {
+            me._akazonaeDone = true;
+            tgt.to = Math.max(1, (tgt.to||100) - 18);
+            addLog(st, logSide, `  赤備え(${me.name}): ${tgt.name}の統率-18`);
+          }
+          // 近衛斉射（立花誾千代0凸）: 20%で対象に麻痺2T
+          if (hasTrait(me,'近衛斉射') && tgt.hp > 0 && Math.random() < 0.20) {
+            if (tryCtrl(tgt, u=>{u.muku=Math.max(u.muku||0,2);}, '麻痺', st))
+              addLog(st, logSide, `  近衛斉射(${me.name}): ${tgt.name}に麻痺2T`);
+          }
+          // 側撃（山本勘助0凸）: 14%で対象に疲弊1T
+          if (hasTrait(me,'側撃') && tgt.hp > 0 && Math.random() < 0.14) {
+            if (tryCtrl(tgt, u=>{u.hibi=Math.max(u.hibi||0,1);}, '疲弊', st))
+              addLog(st, logSide, `  側撃(${me.name}): ${tgt.name}に疲弊1T`);
+          }
+          // 三河武士（徳川家康0凸）: 自軍は通常攻撃後15%で「次回被ダメ-50%」獲得
+          if (allies.some(a=>a.hp>0 && hasTrait(a,'三河武士')) && Math.random() < 0.15) {
+            me._mikawaBushiReduce = true;
+            addLog(st, logSide, `  三河武士(${me.name}): 次回被ダメ-50%`);
+          }
+          // 姫武者（成田甲斐0凸）: 2回攻撃するたびに会心+2%（最大8回）
+          if (hasTrait(me,'姫武者')) {
+            me._himeAtkCnt = (me._himeAtkCnt||0) + 1;
+            if (me._himeAtkCnt % 2 === 0 && (me._himeStacks||0) < 8) {
+              me._himeStacks = (me._himeStacks||0) + 1;
+              me.critRate = Math.min(1.0, (me.critRate||0) + 0.02);
+              addLog(st, logSide, `  姫武者(${me.name}): 会心+2% [${me._himeStacks}/8]（計${Math.round(me.critRate*100)}%）`);
+            }
+          }
+          // ─ 固有特性: 通常攻撃ヒット後の発動（被弾側） ─
+          // 雷の化身（立花道雪0凸）: 通常攻撃を受けた側が低確率で攻撃者に麻痺
+          if (hasTrait(tgt,'雷の化身') && me.hp > 0 && Math.random() < 0.15) {
+            if (tryCtrl(me, u=>{u.muku=Math.max(u.muku||0,1);}, '麻痺', st))
+              addLog(st, isSelf?'log-enemy':'log-ally', `  雷の化身(${tgt.name}): ${me.name}に麻痺1T`);
+          }
+          // 花枝招展（お江0凸）: 被通常攻撃時45%で自己回復（知略依存、最大3回）
+          if (hasTrait(tgt,'花枝招展') && tgt.hp > 0 && (tgt._hanaeCnt||0) < 3 && Math.random() < 0.45) {
+            tgt._hanaeCnt = (tgt._hanaeCnt||0) + 1;
+            const _heSide = isSelf ? 'enemy' : 'ally';
+            const _heH = applyHealRate(tgt.hp, tgt.chi, 68);
+            const {healed:_heAh, remainHp:_heRh} = applyHeal(tgt, _heH, st, _heSide);
+            if (_heAh > 0) addLog(st, isSelf?'log-enemy':'log-ally', `  花枝招展(${tgt.name}) 被弾→回復+${_heAh.toLocaleString()}（残${_heRh.toLocaleString()}）`);
+          }
+          // 雄略絶倫（高橋紹運0凸）: 被通常攻撃時、攻撃者の主要属性を2吸収（最大8回）
+          if (hasTrait(tgt,'雄略絶倫') && tgt.hp > 0 && (tgt._yuuryakuCnt||0) < 8) {
+            tgt._yuuryakuCnt = (tgt._yuuryakuCnt||0) + 1;
+            const _yk = mainStatKey(tgt);
+            me[_yk] = Math.max(1, (me[_yk]||100) - 2);
+            tgt[_yk] = (tgt[_yk]||100) + 2;
+            const _ykLabel = _yk==='bu'?'武勇':_yk==='chi'?'知略':'統率';
+            addLog(st, isSelf?'log-enemy':'log-ally', `  雄略絶倫(${tgt.name}): ${me.name}の${_ykLabel}2吸収 [${tgt._yuuryakuCnt}/8]`);
+          }
         }
         // 乱舞（重ね掛け対応：ranzuRatesの各エントリーが独立して発動）
         ranzuRates.forEach(ranzuRate => {
@@ -759,6 +848,22 @@ function processTurn(st, advMult) {
         addLog(st, 'log-buff', `  軍神(${holder.name}) 溜め獲得 [×${holder.gunshinkStack}]`);
       }
     });
+
+    // 魔王（織田信長0凸）: 行動後、敵各武将が初めてHP50%以下になったらランダムに5%以下の兵力損失
+    if (hasTrait(me,'魔王') && me.hp > 0) {
+      opp.filter(o=>o.hp>0).forEach(o => {
+        if (!o._maouTriggered && o.hp <= o.maxHp * 0.5) {
+          o._maouTriggered = true;
+          const loss = Math.round(o.maxHp * 0.05 * Math.random());
+          if (loss > 0) {
+            o.injured = (o.injured||0) + Math.round(loss*0.9);
+            o.dead = (o.dead||0) + (loss - Math.round(loss*0.9));
+            o.hp = Math.max(0, o.hp - loss);
+            addLog(st, logSide, `  魔王(${me.name}): ${o.name} HP50%以下→兵力-${loss.toLocaleString()}（残${o.hp.toLocaleString()}）`);
+          }
+        }
+      });
+    }
 
     // 比翼連理: 大将（idx===0）の行動後に発動（保持サイドの大将が発動者）
     if (idx === 0 && st.hiyokuSide && st.hiyokuSide === (isSelf?'ally':'enemy')) {
@@ -1141,6 +1246,13 @@ function processTurn(st, advMult) {
         me.gunshinkStack = Math.min(12, (me.gunshinkStack||0) + 1);
         addLog(st, 'log-buff', `  軍神・大将技(${me.name}) ターン溜め+1 [×${me.gunshinkStack}]`);
       }
+      // 越後の龍（上杉謙信1凸）: このターンにダメージを与えていない場合、次ターン被ダメ-22%を有効化
+      if (hasTrait(me,'越後の龍')) {
+        me._echiryuActive = !me._dealtDmgThisTurn;
+        me._dealtDmgThisTurn = false;
+      }
+      // 方円の器: ターンごとの初回計略フラグをリセット
+      if (me._houenThisTurn) me._houenThisTurn = false;
     });
   });
   if (st.baritaunt > 0) {

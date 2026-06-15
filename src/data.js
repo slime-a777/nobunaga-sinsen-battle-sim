@@ -340,10 +340,15 @@ const TRAIT_EFFECTS = {
   '武威Ⅰ':   { buMult: 0.02 },
   '武威Ⅱ':   { buMult: 0.025 },
   '武威Ⅲ':   { buMult: 0.03 },
+  '知恵Ⅰ':   { chiMult: 0.02 },
   '知恵Ⅱ':   { chiMult: 0.025 },
   '知恵Ⅲ':   { chiMult: 0.03 },
   '統帥Ⅰ':   { toMult: 0.02 },
   '統帥Ⅱ':   { toMult: 0.025 },
+  '統帥Ⅲ':   { toMult: 0.03 },
+  // 個人速度系（行動順・風林火山の旗判定・速度依存効果に影響）
+  '急速Ⅱ':   { spdMult: 0.025 },
+  '急速Ⅲ':   { spdMult: 0.03 },
   // 個人攻撃系
   '知謀Ⅰ':   { chiAtkMult: 0.026 },
   '知謀Ⅱ':   { chiAtkMult: 0.033 },
@@ -355,6 +360,7 @@ const TRAIT_EFFECTS = {
   '破敵Ⅲ':   { atkMult: 0.02 },
   // 個人防御系
   '防護Ⅱ':   { buDefReduce: 0.022 },
+  '防護Ⅲ':   { buDefReduce: 0.028 },
   '牢固Ⅰ':   { defReduce: 0.012 },
   '牢固Ⅱ':   { defReduce: 0.016 },
   '牢固Ⅲ':   { defReduce: 0.02 },
@@ -372,18 +378,45 @@ const TRAIT_EFFECTS = {
   // 全体攻撃系
   '攻勢Ⅰ':   { teamAtkMult: 0.01 },
   '攻勢Ⅱ':   { teamAtkMult: 0.013 },
+  '攻勢Ⅲ':   { teamAtkMult: 0.016 },
   '四州の雄': { teamBuAtkMult: 0.06 },
   '謀攻Ⅱ':   { teamChiAtkMult: 0.03 },
   '謀攻Ⅲ':   { teamChiAtkMult: 0.037 },
   '猛攻Ⅰ':   { teamBuAtkMult: 0.014 },
   '猛攻Ⅱ':   { teamBuAtkMult: 0.018 },
+  '猛攻Ⅲ':   { teamBuAtkMult: 0.025 },
   // 全体防御系
   '固守Ⅱ':   { teamBuDefReduce: 0.018 },
+  '固守Ⅲ':   { teamBuDefReduce: 0.022 },
+  '堅固Ⅰ':   { teamChiDefReduce: 0.023 },
   '堅固Ⅱ':   { teamChiDefReduce: 0.03 },
   '堅固Ⅲ':   { teamChiDefReduce: 0.037 },
   '守勢Ⅰ':   { teamDefReduce: 0.01 },
+  '守勢Ⅱ':   { teamDefReduce: 0.013 },
+  '守勢Ⅲ':   { teamDefReduce: 0.016 },
   '人は城':   { teamToMult: 0.05 },
 };
+
+// 女性武将（短刀の契など性別条件の特性で参照）
+const FEMALE_BUSHO = new Set(['ねね','成田甲斐','帰蝶','妻木煕子','寿桂尼','仙桃院','お市','瑞渓院','立花誾千代','まつ','お江','お初']);
+
+// TRAIT_EFFECTS には載らないが、戦闘エンジン側（init/turn/effects/senpo）で
+// 個別ロジックとして実装済みの固有特性。UIの戦闘反映マーク（⚡）判定に使用。
+const TRAIT_IMPL = new Set([
+  '魔王','三河武士','謀神','三矢家訓','波風','義の将','越後の龍','雷の化身',
+  '無傷の誇り','不死身','鳳凰','姫武者','短刀の契','赤備え','清濁併呑','求道',
+  '老功古実','勇烈','方円の器','玄謀','花枝招展','近衛斉射','先駆け','傾奇者',
+  '威勢Ⅱ','虚実','雄略絶倫','側撃','上下一心','猪武者',
+  '剛猛Ⅰ','剛猛Ⅱ','剛猛Ⅲ','忍耐Ⅰ','忍耐Ⅱ','忍耐Ⅲ','奮戦Ⅱ','奮戦Ⅲ',
+]);
+// ある特性が戦闘計算に反映されるか（静的補正 or 個別実装）
+function isCombatTrait(name) { return !!TRAIT_EFFECTS[name] || TRAIT_IMPL.has(name); }
+// ※ 未反映の特性:
+//   - 兵種レベル系（砲術/馬術/弓術/槍術/器術ほか）… 兵種Lvで手動指定するため対象外
+//   - 非戦闘系（甲斐の虎=行軍/古狸=勢力転換/立身出世・築城名手・算盤勘定=育成/
+//     禄寿応穏=士気/公家趣味=家宝/老獪=勢力）
+//   - 回復者の文脈が必要で現エンジンでは表現困難（覇王/人たらし/手足之愛/淑徳）
+//   - 戦法の再発動（連歌百韻/姫城督）… execFixedへの再入が必要なため未対応
 
 // 全武将リスト
 const ALL_BUSHO = Object.keys(BUSHO_DEF);
