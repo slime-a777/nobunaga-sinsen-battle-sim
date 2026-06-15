@@ -25,6 +25,7 @@ function pickNormalTarget(arr) {
 // ═══════════════════════════════════════
 function processTurn(st, advMult) {
   st.turn++;
+  st.advMult = advMult;
   // ターン開始時フラグリセット
   ['ally','enemy'].forEach(side => st[side].forEach(u => { u._mizuHealedThisTurn = false; u._hitByNormalThisTurn = false; }));
   // 行動順プレビュー（速度順）
@@ -373,8 +374,6 @@ function processTurn(st, advMult) {
         let dmgBase = _hasSatsumaJyu
           ? baseDmg(me.chi, tgt.chi, me.hp) * 1.40
           : baseDmg(me.bu, tgt.to, me.hp);
-        // 兵種有利：自軍有利なら自軍×advMult、敵軍×(2-advMult)（例: 1.15→0.85）
-        dmgBase *= isSelf ? advMult : (2.0 - advMult);
         dmgBase *= (me.buff_atkDmg||1.0);
         // 軍神: スタック分の通常攻撃ダメ増加（通常攻撃後リセット）
         if (me.fixed?.name === '軍神' && (me.gunshinkStack||0) > 0) {
@@ -773,7 +772,7 @@ function processTurn(st, advMult) {
         me._yarixaEnhanced = false;
         addLog(st, isSelf?'log-ally':'log-enemy', `  槍の又左(${me.name}): 強化全体通常攻撃発動（+70%）`);
         opp.filter(o=>o.hp>0).forEach(o => {
-          const _yd = Math.round(baseDmg(me.bu, o.to, me.hp) * 1.70 * (isSelf ? advMult : (2.0-advMult)) * (me.buff_atkDmg||1.0) * rand4());
+          const _yd = Math.round(baseDmg(me.bu, o.to, me.hp) * 1.70 * (me.buff_atkDmg||1.0) * rand4());
           const _ya = dealDmg(st, o, _yd, me, isSelf, true, false);
           if (_ya > 0) {
             addLog(st, isSelf?'log-ally':'log-enemy', `  槍の又左強化攻撃(${me.name}→${o.name}) [${_ya.toLocaleString()}]（残${o.hp.toLocaleString()}）${st._lastMods||''}`);
