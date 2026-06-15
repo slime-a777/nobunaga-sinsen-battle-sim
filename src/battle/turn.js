@@ -63,6 +63,7 @@ function processTurn(st, advMult) {
       applyDoTDmg(st, me, d, isSelf, false, true);
       addLog(st, 'log-ctrl', `  火傷継続(${me.name}) [${d.toLocaleString()}]${_kaenLabel}（残${me.hp.toLocaleString()}）${st._lastMods}`);
       st._lastMods = '';
+      flushPostAttackLogs(st); // 回生などの回復ログを主ダメージログの後に出力
       me._kaen--;
       if (me._kaen <= 0) addLog(st, 'log-info', `  火傷解除(${me.name})`);
       if (me.hp <= 0) continue;
@@ -77,6 +78,7 @@ function processTurn(st, advMult) {
       applyDoTDmg(st, me, d, isSelf, false, true);
       addLog(st, 'log-ctrl', `  水攻め継続(${me.name}) [${d.toLocaleString()}]${_suikouLabel}（残${me.hp.toLocaleString()}）${st._lastMods}`);
       st._lastMods = '';
+      flushPostAttackLogs(st); // 回生などの回復ログを主ダメージログの後に出力
       me.suikouT--;
       if (me.suikouT <= 0) { me.healBlock = false; addLog(st, 'log-info', `  水攻め解除(${me.name})`); }
       if (me.hp <= 0) continue;
@@ -90,6 +92,7 @@ function processTurn(st, advMult) {
       applyDoTDmg(st, me, d, isSelf, false, true);
       addLog(st, 'log-ctrl', `  中毒継続(${me.name}) [${d.toLocaleString()}]${_chudokuLabel}（残${me.hp.toLocaleString()}）${st._lastMods}`);
       st._lastMods = '';
+      flushPostAttackLogs(st); // 回生などの回復ログを主ダメージログの後に出力
       me.chudokuT--;
       if (me.chudokuT <= 0) addLog(st, 'log-info', `  中毒解除(${me.name})`);
       if (me.hp <= 0) continue;
@@ -101,6 +104,7 @@ function processTurn(st, advMult) {
       applyDoTDmg(st, me, _kyokouDmg, isSelf, false, true);
       addLog(st, 'log-ctrl', `  旋乾転坤恐慌継続(${me.name}) [${_kyokouDmg.toLocaleString()}]（残${me.hp.toLocaleString()}）${st._lastMods}`);
       st._lastMods = '';
+      flushPostAttackLogs(st); // 回生などの回復ログを主ダメージログの後に出力
       if (me.hp <= 0) continue;
     }
     // 消沈（レートは付与戦法ごとに設定: shochinRate）
@@ -112,6 +116,7 @@ function processTurn(st, advMult) {
       applyDoTDmg(st, me, d, isSelf, false, true);
       addLog(st, 'log-ctrl', `  消沈継続(${me.name}) [${d.toLocaleString()}]${_shochinLabel}（残${me.hp.toLocaleString()}）${st._lastMods}`);
       st._lastMods = '';
+      flushPostAttackLogs(st); // 回生などの回復ログを主ダメージログの後に出力
       me.shochinT--;
       if (me.shochinT <= 0) addLog(st, 'log-info', `  消沈解除(${me.name})`);
       if (me.hp <= 0) continue;
@@ -125,6 +130,7 @@ function processTurn(st, advMult) {
       applyDoTDmg(st, me, cr.val, isSelf, true, false);
       addLog(st, 'log-ctrl', `  潰走継続(${me.name}) [${cr.val.toLocaleString()}]${cr.label}（残${me.hp.toLocaleString()}）${st._lastMods}`);
       st._lastMods = '';
+      flushPostAttackLogs(st); // 回生などの回復ログを主ダメージログの後に出力
       me.kaisoT--;
       if (me.kaisoT <= 0) addLog(st, 'log-info', `  潰走解除(${me.name})`);
       if (me.hp <= 0) continue;
@@ -395,7 +401,7 @@ function processTurn(st, advMult) {
         if (fin > 0) {
           addLog(st, logSide, `  ${sideLabel} ${me.name}→${tgt.name} ${label} [${fin.toLocaleString()}]${critLabel}（残${Math.max(0, _preHP - fin).toLocaleString()}）${st._lastMods||''}`);
           st._lastMods = '';
-          (st._pendingPostAttackLogs||[]).forEach(({cls, msg}) => addLog(st, cls, msg));
+          (st._pendingPostAttackLogs||[]).forEach((e) => { const r = e.fn ? e.fn() : e; if (r && r.msg) addLog(st, r.cls, r.msg); });
           st._pendingPostAttackLogs = [];
           if (me.fixed?.name === '七本槍筆頭') me.shichiHitCnt++;
           if (st.hiyokuSide && st.hiyokuSide !== (isSelf?'ally':'enemy')) st.hiyokuAccum += fin * 0.75;
@@ -416,7 +422,7 @@ function processTurn(st, advMult) {
             if (cFin > 0) {
               addLog(st, isSelf?'log-enemy':'log-ally', `  古今独歩反撃(${tgt.name}→${me.name}) 兵刃[${cFin.toLocaleString()}]（残${me.hp.toLocaleString()}）${st._lastMods||''}`);
               st._lastMods = '';
-              (st._pendingPostAttackLogs||[]).forEach(({cls, msg}) => addLog(st, cls, msg));
+              (st._pendingPostAttackLogs||[]).forEach((e) => { const r = e.fn ? e.fn() : e; if (r && r.msg) addLog(st, r.cls, r.msg); });
               st._pendingPostAttackLogs = [];
             }
             // 反撃は通常攻撃扱いのため突撃戦法も発動
@@ -448,7 +454,7 @@ function processTurn(st, advMult) {
               if (_cFin > 0) {
                 addLog(st, isSelf?'log-enemy':'log-ally', `  御旗楯無反撃(${_cu.name}→${me.name}) 兵刃[${_cFin.toLocaleString()}]（残${me.hp.toLocaleString()}）${st._lastMods||''}`);
                 st._lastMods = '';
-                (st._pendingPostAttackLogs||[]).forEach(({cls, msg}) => addLog(st, cls, msg));
+                (st._pendingPostAttackLogs||[]).forEach((e) => { const r = e.fn ? e.fn() : e; if (r && r.msg) addLog(st, r.cls, r.msg); });
                 st._pendingPostAttackLogs = [];
               }
             }
@@ -460,7 +466,7 @@ function processTurn(st, advMult) {
             if (_hcFin > 0) {
               addLog(st, isSelf?'log-enemy':'log-ally', `  腹中鱗甲反撃(${tgt.name}→${me.name}) 兵刃[${_hcFin.toLocaleString()}]（残${me.hp.toLocaleString()}）${st._lastMods||''}`);
               st._lastMods = '';
-              (st._pendingPostAttackLogs||[]).forEach(({cls, msg}) => addLog(st, cls, msg));
+              (st._pendingPostAttackLogs||[]).forEach((e) => { const r = e.fn ? e.fn() : e; if (r && r.msg) addLog(st, r.cls, r.msg); });
               st._pendingPostAttackLogs = [];
             }
           }
@@ -471,7 +477,7 @@ function processTurn(st, advMult) {
             if (_hkFin > 0) {
               addLog(st, isSelf?'log-enemy':'log-ally', `  反撃(不屈の精神)(${tgt.name}→${me.name}) 兵刃[${_hkFin.toLocaleString()}]（残${me.hp.toLocaleString()}）${st._lastMods||''}`);
               st._lastMods = '';
-              (st._pendingPostAttackLogs||[]).forEach(({cls, msg}) => addLog(st, cls, msg));
+              (st._pendingPostAttackLogs||[]).forEach((e) => { const r = e.fn ? e.fn() : e; if (r && r.msg) addLog(st, r.cls, r.msg); });
               st._pendingPostAttackLogs = [];
             }
             // 不屈の精神: 2回被通攻で武勇+36
@@ -492,7 +498,7 @@ function processTurn(st, advMult) {
             if (_drFin > 0) {
               addLog(st, isSelf?'log-enemy':'log-ally', `  洞察反撃(${tgt.name}→${me.name}) 計略[${_drFin.toLocaleString()}]（残${me.hp.toLocaleString()}）${st._lastMods||''}`);
               st._lastMods = '';
-              (st._pendingPostAttackLogs||[]).forEach(({cls, msg}) => addLog(st, cls, msg));
+              (st._pendingPostAttackLogs||[]).forEach((e) => { const r = e.fn ? e.fn() : e; if (r && r.msg) addLog(st, r.cls, r.msg); });
               st._pendingPostAttackLogs = [];
             }
           }
@@ -595,7 +601,7 @@ function processTurn(st, advMult) {
               if (_dtFin > 0) {
                 addLog(st, isSelf?'log-enemy':'log-ally', `  大太刀力士隊反撃(${tgt.name}→${me.name}) 兵刃[${_dtFin.toLocaleString()}]（残${me.hp.toLocaleString()}）${st._lastMods||''}`);
                 st._lastMods = '';
-                (st._pendingPostAttackLogs||[]).forEach(({cls, msg}) => addLog(st, cls, msg));
+                (st._pendingPostAttackLogs||[]).forEach((e) => { const r = e.fn ? e.fn() : e; if (r && r.msg) addLog(st, r.cls, r.msg); });
                 st._pendingPostAttackLogs = [];
               }
             }
@@ -683,7 +689,7 @@ function processTurn(st, advMult) {
           if (_ya > 0) {
             addLog(st, isSelf?'log-ally':'log-enemy', `  槍の又左強化攻撃(${me.name}→${o.name}) [${_ya.toLocaleString()}]（残${o.hp.toLocaleString()}）${st._lastMods||''}`);
             st._lastMods = '';
-            (st._pendingPostAttackLogs||[]).forEach(({cls, msg}) => addLog(st, cls, msg));
+            (st._pendingPostAttackLogs||[]).forEach((e) => { const r = e.fn ? e.fn() : e; if (r && r.msg) addLog(st, r.cls, r.msg); });
             st._pendingPostAttackLogs = [];
           }
         });
@@ -782,7 +788,7 @@ function processTurn(st, advMult) {
             const sl = hSide === 'ally' ? '[自]' : '[敵]';
             addLog(st, logCls, `  ${sl} 比翼連理(${taisho.name}→${t.name}) 計略[${actualDmg.toLocaleString()}]${kr.label}（残${t.hp.toLocaleString()}） 蓄積:${Math.round(savedAccum).toLocaleString()}${st._lastMods||''}`);
             st._lastMods = '';
-            (st._pendingPostAttackLogs||[]).forEach(({cls, msg}) => addLog(st, cls, msg));
+            (st._pendingPostAttackLogs||[]).forEach((e) => { const r = e.fn ? e.fn() : e; if (r && r.msg) addLog(st, r.cls, r.msg); });
             st._pendingPostAttackLogs = [];
           }
         } else {
@@ -876,7 +882,7 @@ function processTurn(st, advMult) {
           addLog(st,logSide_sck,`  [${isSelf_sck?'自':'敵'}] 死中求活・5T発動(${me.name}→${t.name}) 兵刃[${actual.toLocaleString()}]${cr.label} (${rate}% ×${stacks}スタック)（残${t.hp.toLocaleString()}）${st._lastMods||''}`);
           st._lastMods = '';
         });
-        (st._pendingPostAttackLogs||[]).forEach(({cls, msg}) => addLog(st, cls, msg));
+        (st._pendingPostAttackLogs||[]).forEach((e) => { const r = e.fn ? e.fn() : e; if (r && r.msg) addLog(st, r.cls, r.msg); });
         st._pendingPostAttackLogs = [];
       });
     });

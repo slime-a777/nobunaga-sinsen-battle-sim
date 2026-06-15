@@ -377,36 +377,43 @@ function dealDmg(st, target, dmg, attacker, attackerIsSelf, isMelee=false, isChi
   }
 
   // 回生：ダメージを受けるたびに発動（kaiseiT > 0の間）
+  // ダメージログの残兵数が「回復前」の値を示すよう、回復の適用とログ生成は
+  // pendingの遅延関数として後段（主ダメージログ出力後）で実行する
   if (target.hp > 0 && (target.kaiseiT || 0) > 0 && finalDmg > 0) {
     const _kProb = target.kaiseiProb ?? 0.50;
     const _kRate = target.kaiseiHealRate ?? 66;
     const _kStat = (target.kaiseiDepStat || 0) > 0 ? target.kaiseiDepStat : (target.chi || 100);
     if (Math.random() < _kProb) {
-      const h = applyHealRate(target.hp, _kStat, _kRate);
       const tgtSide = attackerIsSelf ? 'enemy' : 'ally';
-      const {healed: _kaiseiH, remainHp: _kaiseiRH} = applyHeal(target, h, st, tgtSide);
-      if (_kaiseiH > 0) {
-        (st._pendingPostAttackLogs = st._pendingPostAttackLogs||[]).push({cls:'log-heal', msg:`  回生(${target.name}) ダメ受け→+${_kaiseiH.toLocaleString()}（残${_kaiseiRH.toLocaleString()}）`});
-        if (st._pendingMizuLog) { st._pendingPostAttackLogs.push(st._pendingMizuLog); st._pendingMizuLog = null; }
-      }
+      (st._pendingPostAttackLogs = st._pendingPostAttackLogs||[]).push({ fn: () => {
+        const h = applyHealRate(target.hp, _kStat, _kRate);
+        const {healed: _kaiseiH, remainHp: _kaiseiRH} = applyHeal(target, h, st, tgtSide);
+        if (_kaiseiH > 0) {
+          addLog(st, 'log-heal', `  回生(${target.name}) ダメ受け→+${_kaiseiH.toLocaleString()}（残${_kaiseiRH.toLocaleString()}）`);
+          flushMizuLog(st);
+        }
+        return null;
+      }});
     }
   }
 
   // 同気連枝: マーク済み攻撃者からのダメ時に被攻撃者を回復（80%*statScale(知略)、回復量28%*statScale）
+  // 回生と同様、回復の適用とログは主ダメージログ出力後に遅延実行する
   if (finalDmg > 0 && st._doukiMarked?.includes(attacker) && st._doukiHolder?.hp > 0) {
     const prob = Math.min(1.0, 0.80 * statScale(st._doukiHolder.chi));
     if (Math.random() < prob) {
       const healRate = Math.min(1.0, 0.28 * statScale(st._doukiHolder.chi));
       const healAmt  = Math.round(finalDmg * healRate);
       const tgtSide  = attackerIsSelf ? 'enemy' : 'ally';
-      const { healed: _dkH, remainHp: _dkRH } = applyHeal(target, healAmt, st, tgtSide);
-      if (_dkH > 0) {
-        (st._pendingPostAttackLogs = st._pendingPostAttackLogs||[]).push({
-          cls: 'log-heal',
-          msg: `  同気連枝(${st._doukiHolder.name}→${target.name}) 回復+${_dkH.toLocaleString()}（残${_dkRH.toLocaleString()}）`
-        });
-        if (st._pendingMizuLog) { st._pendingPostAttackLogs.push(st._pendingMizuLog); st._pendingMizuLog = null; }
-      }
+      const _doukiHolder = st._doukiHolder;
+      (st._pendingPostAttackLogs = st._pendingPostAttackLogs||[]).push({ fn: () => {
+        const { healed: _dkH, remainHp: _dkRH } = applyHeal(target, healAmt, st, tgtSide);
+        if (_dkH > 0) {
+          addLog(st, 'log-heal', `  同気連枝(${_doukiHolder.name}→${target.name}) 回復+${_dkH.toLocaleString()}（残${_dkRH.toLocaleString()}）`);
+          flushMizuLog(st);
+        }
+        return null;
+      }});
     }
   }
 
@@ -596,15 +603,23 @@ function applyDoTDmg(st, target, dmg, targetIsSelf, isMelee=false, isChi=true) {
   target.hp = Math.max(0, target.hp - finalDmg);
 
   // 回生: ダメージを受けるたびに発動（kaiseiT > 0の間）
+  // 継続ダメージのログも「回復前」の残兵数を示すよう、回復はpendingの遅延関数で後段実行する
+  // （呼び出し側が主ダメージログ出力後に flushPostAttackLogs(st) を呼ぶ）
   if (target.hp > 0 && (target.kaiseiT||0) > 0 && finalDmg > 0) {
     const _kProb = target.kaiseiProb ?? 0.50;
     const _kRate = target.kaiseiHealRate ?? 66;
     const _kStat = (target.kaiseiDepStat||0) > 0 ? target.kaiseiDepStat : (target.chi||100);
     if (Math.random() < _kProb) {
-      const h = applyHealRate(target.hp, _kStat, _kRate);
-      const {healed: _kH, remainHp: _kRH} = applyHeal(target, h, st, targetIsSelf ? 'ally' : 'enemy');
-      if (_kH > 0) addLog(st, 'log-heal', `  回生(${target.name}) ダメ受け→+${_kH.toLocaleString()}（残${_kRH.toLocaleString()}）`);
-      flushMizuLog(st);
+      const tgtSide = targetIsSelf ? 'ally' : 'enemy';
+      (st._pendingPostAttackLogs = st._pendingPostAttackLogs||[]).push({ fn: () => {
+        const h = applyHealRate(target.hp, _kStat, _kRate);
+        const {healed: _kH, remainHp: _kRH} = applyHeal(target, h, st, tgtSide);
+        if (_kH > 0) {
+          addLog(st, 'log-heal', `  回生(${target.name}) ダメ受け→+${_kH.toLocaleString()}（残${_kRH.toLocaleString()}）`);
+          flushMizuLog(st);
+        }
+        return null;
+      }});
     }
   }
 
@@ -643,4 +658,16 @@ function flushMizuLog(st) {
     addLog(st, st._pendingMizuLog.cls, st._pendingMizuLog.msg);
     st._pendingMizuLog = null;
   }
+}
+
+// 攻撃後のpendingログをフラッシュする共通関数。
+// 通常エントリ {cls, msg} はそのまま出力し、遅延エントリ {fn} は実行する。
+// 遅延エントリは回復の適用とログ生成を主ダメージログ出力後に行うために使用する
+// （例: 回生・同気連枝。これによりダメージログの残兵数が回復前の値となる）
+function flushPostAttackLogs(st) {
+  (st._pendingPostAttackLogs||[]).forEach((e) => {
+    const r = e.fn ? e.fn() : e;
+    if (r && r.msg) addLog(st, r.cls, r.msg);
+  });
+  st._pendingPostAttackLogs = [];
 }
