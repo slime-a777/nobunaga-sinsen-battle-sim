@@ -281,11 +281,15 @@ function processTurn(st, advMult) {
       const _shippuuStrike = (t) => {
         _shippuuHit.add(t);
         // 対象が麻痺状態かを命中前に判定する。
-        // muku は対象の行動時に消化されるため、誾千代が対象より速い場合は付与した麻痺1Tが
-        // 同ターン中に消化され次の命中時には muku=0 になる。実ゲームの「前ターンに付与した麻痺が
-        // 次ターンも継続中に再命中→回復」を再現するため、疾風迅雷で付与した麻痺はターンを記録し、
-        // 翌ターンの命中時も「麻痺中」として扱う（麻痺の持続自体は1Tのまま）。
-        const _wasParalyzed = (t.muku||0) > 0 || (t._shippuuParaTurn === st.turn - 1);
+        // muku は対象の行動時に消化されるため、対象が誾千代より速い（先に行動する）場合、
+        // 道雪の電光雷轟など他戦法で付与された麻痺もその行動時に消化され、誾千代の命中時には
+        // muku=0 になってしまう。これにより「麻痺中の相手を攻撃したのに回復が不発」となる。
+        // これを防ぐため、いずれかの戦法で付与された麻痺を同ターン中に消化した対象には
+        // _paraConsumedTurn を記録し、同ターン内の命中では「麻痺中」として扱う。
+        // また疾風迅雷で付与した麻痺(1T)は翌ターンの命中時も麻痺中として扱う（_shippuuParaTurn）。
+        const _wasParalyzed = (t.muku||0) > 0
+          || (t._shippuuParaTurn === st.turn - 1)
+          || (t._paraConsumedTurn === st.turn);
         const d  = applyRate(baseDmg(me.bu, t.to, me.hp), 76);
         const cr = applyCrit(d, me);
         const actualDmg = dealDmg(st, t, cr.val, me, isSelf, true, false);
@@ -339,6 +343,9 @@ function processTurn(st, advMult) {
     }
     // 麻痺チェック（30%で行動不能）
     if (!_skipAction && me.muku > 0) {
+      // この行動時点で麻痺中だったことを記録（疾風迅雷の麻痺中回復判定で参照）。
+      // 対象が誾千代より先に行動して麻痺を消化しても、同ターン内の命中は麻痺中として扱う。
+      me._paraConsumedTurn = st.turn;
       if (Math.random() < 0.30) {
         addLog(st,'log-ctrl',`  麻痺効果が発動し、${me.name} 行動不能`);
         me.muku--;
